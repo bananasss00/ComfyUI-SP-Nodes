@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-sp-nodes"
+description = "Node Pack: PromptChecker for token toggling, PyExec for Python code execution inside ComfyUI, KoboldCPP API, ModelMerging, Telegram-Bot-API, and more"
+version = "1.0.0"
+license = { }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/bananasss00/ComfyUI-SP-Nodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "seniorpioner"
+DisplayName = "SP-Nodes"
+Icon = ""
