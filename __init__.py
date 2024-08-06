@@ -2,7 +2,7 @@
 @author: SeniorPioner
 @title: SP-Nodes
 @nickname: SP-Nodes
-@description: Node Pack: PromptChecker for token toggling, PyExec for Python code execution inside ComfyUI, KoboldCPP API, ModelMerging, Telegram-Bot-API, and more
+@description: Node Pack: PromptChecker for token toggling, KoboldCPP API, ModelMerging, Telegram-Bot-API, and more
 """
 
 import shutil, os, folder_paths

@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-sp-nodes"
-description = "Node Pack: PromptChecker for token toggling, PyExec for Python code execution inside ComfyUI, KoboldCPP API, ModelMerging, Telegram-Bot-API, and more"
+description = "Node Pack: PromptChecker for token toggling, KoboldCPP API, ModelMerging, Telegram-Bot-API, and more"
 version = "1.0.0"
 license = { }
 dependencies = []
