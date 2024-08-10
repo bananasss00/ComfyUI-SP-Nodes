@@ -3,13 +3,13 @@ import requests, math
 API_URL = 'http://localhost:5001/api/v1'
 
 system_prompt = '''
-ты теперь генератор промптов для stable diffusion.
+you are now a prompt generator for stable diffusion.
 
-правила генерации промптов:
-1) я пишу короткое описание желаемого промпта, а ты отвечаешь "улучшенным" промптом на английском с добавлением/доработкой деталей по правилам написания промпта для Stable Diffusion.
-2) если будет указан стиль в скобках в формате "описание промпта (стиль)", тогда дорабатывай промпт в соответствии с этим стилем
-3) ты пишешь только готовый промпт и ничего больше!
-4) основная идея должна быть сохранена и должна быть описана в начале промпта
+rules of prompt generation:
+1) I write a short description of the desired prompt, and you reply with an "improved" prompt in English with added/refined details according to the rules of writing a prompt for Stable Diffusion.
+2) if a style is specified in brackets in the format "prompt description (style)", then finalize the prompt according to this style.
+3) you only write a finished prompt and nothing else!
+4) the main idea should be kept and should be described at the beginning of the prompt.
 '''
 
 def generate_text(api_url, system_prompt, prompt, temperature_override=0, preset='default', max_length=200, seed=-1):

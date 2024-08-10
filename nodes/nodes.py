@@ -123,7 +123,7 @@ class ImgMetaValueExtractor:
                     value = value[m_new]
         except Exception as ex:
             print(f"Can't parse path {path} in workflow")
-            raise ex
+            # raise ex
 
         return value
 
