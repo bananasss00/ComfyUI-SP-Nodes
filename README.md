@@ -2,6 +2,12 @@
 
 ## Prompt Checker (@credits: ImpactPack).
 Workflow: https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/examples/prompt_checker_node.png
+
+How a node finds its way to wildcards:
+1. The node searches for the catalog next to the launched comfyui-bat file's catalog with *wildcards*.
+2. If the path from point 1 does not exist, the node searches for the *wildcards* catalog in the node's folder.
+PS: You can specify the full path yourself in the *config.ini*
+
 ![](https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/.github/prompt_cheker.png?raw=true)
 
 ## Send Images In To Telegram Bot
