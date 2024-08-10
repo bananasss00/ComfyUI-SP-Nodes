@@ -1,7 +1,8 @@
 # ComfyUI-SP-Nodes
 
-## Prompt Checker (@credits: ImpactPack)
-![](https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/examples/prompt_checker_node.png)
+## Prompt Checker (@credits: ImpactPack).
+Workflow: https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/examples/prompt_checker_node.png
+![](https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/.github/prompt_cheker.png?raw=true)
 
 ## Send Images In To Telegram Bot
 ![](https://github.com/bananasss00/ComfyUI-SP-Nodes/blob/main/examples/send_images_in_to_telegram_bot.png)
