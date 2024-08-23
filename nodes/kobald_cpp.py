@@ -2,17 +2,134 @@ import requests, math
 
 API_URL = 'http://localhost:5001/api/v1'
 
-system_prompt = '''
-you are now a prompt generator for stable diffusion.
+system_prompt = '''you are now a prompt generator for stable diffusion.
 
 rules of prompt generation:
 1) I write a short description of the desired prompt, and you reply with an "improved" prompt in English with added/refined details according to the rules of writing a prompt for Stable Diffusion.
 2) if a style is specified in brackets in the format "prompt description (style)", then finalize the prompt according to this style.
 3) you only write a finished prompt and nothing else!
-4) the main idea should be kept and should be described at the beginning of the prompt.
-'''
+4) the main idea should be kept and should be described at the beginning of the prompt.'''
 
-def generate_text(api_url, system_prompt, prompt, temperature_override=0, preset='default', max_length=200, seed=-1):
+class LLMMode:
+    def __init__(self, system_tag, sys_prompt, user_tag, assistant_tag):
+        self._system_tag = system_tag
+        self._sys_prompt = sys_prompt
+        self._user_tag = user_tag
+        self._assistant_tag = assistant_tag
+        self.stop_sequence = [user_tag.strip(), assistant_tag.strip()]
+
+    def memory(self):
+        return f'{self._system_tag}{self._sys_prompt}\n\n'
+    
+    def prompt(self, prompt):
+        return f'{self._user_tag}{prompt}{self._assistant_tag}'
+
+class Chat_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\nUser: ',
+            assistant_tag='\nKoboldAI: ')
+        
+class Alpaca_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\n### Instruction:\n',
+            assistant_tag='\n### Response:\n')
+        
+class Vicuna_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\nUSER: ',
+            assistant_tag='\nASSISTANT: ')
+
+class Metharme_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='<|user|>',
+            assistant_tag='<|model|>')
+             
+class Llama2Chat_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='[INST] ',
+            assistant_tag=' [/INST]')
+           
+class QuestionAnswer_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\nQuestion: ',
+            assistant_tag='\nAnswer: ')
+           
+class ChatML_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='<|im_start|>system\n',
+            sys_prompt=sys_prompt,
+            user_tag='<|im_end|>\n<|im_start|>user\n',
+            assistant_tag='<|im_end|>\n<|im_start|>assistant\n')
+
+class InputOutput_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\n{{[INPUT]}}\n',
+            assistant_tag='\n{{[OUTPUT]}}\n')
+           
+class CommandR_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
+            sys_prompt=sys_prompt,
+            user_tag='<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
+            assistant_tag='<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>')
+
+class Llama3Chat_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='<|start_header_id|>system<|end_header_id|>\n\n',
+            sys_prompt=sys_prompt,
+            user_tag='<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n',
+            assistant_tag='<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n')
+           
+class Phi3Mini_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='<|system|>\n',
+            sys_prompt=sys_prompt,
+            user_tag='<|end|><|user|>\n',
+            assistant_tag='<|end|>\n<|assistant|>')
+
+class Gemma2_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='<start_of_turn>user\n',
+            sys_prompt=sys_prompt,
+            user_tag='<end_of_turn>\n<start_of_turn>user\n',
+            assistant_tag='<end_of_turn>\n<start_of_turn>model\n')
+
+class Mistral_LLMMode(LLMMode):
+    def __init__(self, sys_prompt):
+        super().__init__(
+            system_tag='',
+            sys_prompt=sys_prompt,
+            user_tag='\n[INST] ',
+            assistant_tag=' [/INST]\n')
+
+
+def generate_text(api_url, system_prompt, prompt, temperature_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
     endpoint = f'{api_url}/generate'
     headers = {
         'Content-Type': 'application/json'
@@ -37,16 +154,18 @@ def generate_text(api_url, system_prompt, prompt, temperature_override=0, preset
     else:
         raise Exception('bad arg')
 
+    mode: LLMMode = globals()[f'{llm_mode}_LLMMode'](system_prompt)
+
     payload = {
         "n": 1,
         # "max_context_length": 8192, 
         "max_length": max_length, 
-        'prompt': f"\nUser:{prompt}\nAI:",
-        'memory': system_prompt,
+        'prompt': mode.prompt(prompt) ,#f"\nUser:{prompt}\nAI:",
+        'memory': mode.memory(), #system_prompt,
         "sampler_seed": seed,
-        "dry_sequence_breakers": ["\n", ":", "\"", "*"],
+        # "dry_sequence_breakers": ["\n", ":", "\"", "*"],
         "trim_stop": True,
-        "stop_sequence": ["User:", "\nUser ", "\nAI: "],
+        "stop_sequence": mode.stop_sequence, #["User:", "\nUser ", "\nAI: "],
         "quiet": True,
         "use_default_badwordsids": False,
         "bypass_eos": False,
@@ -85,7 +204,13 @@ class SP_KoboldCpp:
                         "api_url": ("STRING", {"default": API_URL, "multiline": False}),
                         "system_prompt": ("STRING", {"default": system_prompt, "multiline": True}),
                         "prompt": ("STRING", {"default": '', "multiline": True}),
-                        "preset": (['simple_logical', 'default', 'simple_balanced', 'simple_creative', 'silly_tavern', 'coherent_creativity', 'godlike', 'liminal_drift'], ),
+                        "llm_mode": (['Chat', 'Alpaca', 'Vicuna', 'Metharme',
+                            'Llama2Chat', 'QuestionAnswer', 'ChatML',
+                            'InputOutput', 'CommandR', 'Llama3Chat', 
+                            'Phi3Mini', 'Gemma2', 'Mistral'], ),
+                        "preset": (['simple_logical', 'default', 'simple_balanced',
+                                    'simple_creative', 'silly_tavern', 'coherent_creativity',
+                                    'godlike', 'liminal_drift'], ),
                         "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
                         "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
@@ -99,8 +224,8 @@ class SP_KoboldCpp:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, api_url, system_prompt, prompt, preset, temperature_override, max_length, seed):
-        return generate_text(api_url, system_prompt, prompt, temperature_override, preset, max_length=max_length, seed=seed).replace('User:', ''),
+    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, temperature_override, max_length, seed):
+        return generate_text(api_url, system_prompt, prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
 
 
 NODE_CLASS_MAPPINGS = {
