@@ -83,8 +83,9 @@ pip_install = [sys.executable, '-m', 'pip', 'install']
 
 try:
     import nltk
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
     nltk.download('punkt')
-    
 except ImportError:
     process_wrap(pip_install + ['nltk'])
 
