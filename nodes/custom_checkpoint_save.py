@@ -102,10 +102,81 @@ class CheckpointSave:
     def save(self, model, filename_prefix, clip_opt=None, vae_opt=None, prompt=None, extra_pnginfo=None):
         save_checkpoint(model, clip=clip_opt, vae=vae_opt, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
         return {}
+
+class SP_UnetSave:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "filename_prefix": ("STRING", {"default": "checkpoints/ComfyUI"}),},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+    OUTPUT_NODE = True
+
+    CATEGORY = "SP-Nodes"
+
+    def save(self, model, filename_prefix, prompt=None, extra_pnginfo=None):
+        feature_prefix="model.diffusion_model."
+        state_dict = model.model.state_dict_for_saving()
+
+        # extract unet
+        state_dict = {
+                k.replace(f"{feature_prefix}", ""): v
+                for k, v in state_dict.items()
+                if k.startswith(feature_prefix)
+            }
+
+        for k in state_dict:
+                t = state_dict[k]
+                if not t.is_contiguous():
+                    state_dict[k] = t.contiguous()
+
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+
+        # metadata
+        metadata = {}
+
+        prompt_info = ""
+        if prompt is not None:
+            prompt_info = json.dumps(prompt)
+
+        enable_modelspec = True
+        if isinstance(model.model, comfy.model_base.SDXL):
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
+        elif isinstance(model.model, comfy.model_base.SDXLRefiner):
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
+        else:
+            enable_modelspec = False
+
+        if enable_modelspec:
+            metadata["modelspec.sai_model_spec"] = "1.0.0"
+            metadata["modelspec.implementation"] = "sgm"
+            metadata["modelspec.title"] = "{} {}".format(filename, counter)
+
+        if model.model.model_type == comfy.model_base.ModelType.EPS:
+            metadata["modelspec.predict_key"] = "epsilon"
+        elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
+            metadata["modelspec.predict_key"] = "v"
+
+        if not args.disable_metadata:
+            metadata["prompt"] = prompt_info
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
         
+        # saving
+        output_checkpoint = f"{filename}_{counter:05}_.safetensors"
+        output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
+
+        comfy.utils.save_torch_file(state_dict, output_checkpoint, metadata=metadata)
+        return {}
 
 NODE_CLASS_MAPPINGS = {
     "SP-CheckpointSave": CheckpointSave,
+    "SP-UnetSave": SP_UnetSave,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
