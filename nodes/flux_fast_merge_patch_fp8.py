@@ -4,9 +4,13 @@ import inspect, binascii
 
 CATEGORY = "SP-Nodes"
 
+class AnyType(str):
+    def __ne__(self, __value: object) -> bool:
+        return False
+    
 class SP_FluxFastMergePatchFP8:
     CATEGORY = CATEGORY
-    RETURN_TYPES = tuple()
+    RETURN_TYPES = (AnyType("*"), )
     FUNCTION = "apply_patch"
     OUTPUT_NODE = True
 
@@ -28,6 +32,9 @@ Important:
         return {
             "required": {
                 "info":("STRING", {"multiline": True,"default": SP_FluxFastMergePatchFP8.DESCRIPTION}),
+            },
+            "optional": {
+                "optional":(AnyType("*"), ),
             }
         }
 
@@ -93,7 +100,7 @@ Important:
             logging.info('[SP_FluxFastMergePatchFP8] patch succeeded!')
 
 
-        return tuple()
+        return SP_FluxFastMergePatchFP8.ORIGINAL_PWTD != None, 
 
         
 

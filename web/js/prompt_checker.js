@@ -9,16 +9,16 @@ app.registerExtension({
     name: 'comfy.sp_nodes.prompt_checker',
 
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if(nodeData.name == 'PromptChecker'){
+        if (nodeData.name == 'PromptChecker') {
             const onNodeCreated = nodeType.prototype.onNodeCreated;
-            nodeType.prototype.onNodeCreated = function() {
+            nodeType.prototype.onNodeCreated = function () {
                 onNodeCreated && onNodeCreated.call(this);
-                const prompt =  this.widgets[0];
-                
+                const prompt = this.widgets[0];
+
                 let token_div = $el("div", {
                     id: "token-buttons"
                 });
-                
+
                 function tokenize(str) {
                     const tokens = [];
                     let currentToken = '';
@@ -27,7 +27,7 @@ app.registerExtension({
 
                     for (let i = 0; i < str.length; i++) {
                         const char = str[i];
-                        
+
                         if (char === '{') {
                             insideBrackets++;
                             currentToken += char;
@@ -56,8 +56,8 @@ app.registerExtension({
                 }
 
                 function toggleToken(token, button) {
-                    let currentTokens = tokenize(prompt.value); //prompt.value.split(',').map(t => t.trim()).filter(t => t);
-                    
+                    let currentTokens = tokenize(prompt.value);
+
                     for (let i = 0; i < currentTokens.length; i++) {
                         if (currentTokens[i] === token) {
                             if (token.startsWith(DISABLED_TOKEN)) {
@@ -78,10 +78,10 @@ app.registerExtension({
                     if (token.startsWith(DISABLED_TOKEN)) {
                         return token;
                     }
-                
+
                     let currentTokens = tokenize(prompt.value);
                     const weightRegex = /^\((.*?):([0-9.]+)\)$/;
-                
+
                     currentTokens = currentTokens.map(currentToken => {
                         let newToken = token
                         if (currentToken === token) {
@@ -89,7 +89,7 @@ app.registerExtension({
                             if (weightRegex.test(token)) {
                                 newToken = token.replace(weightRegex, (match, content, weight) => {
                                     let newWeight = parseFloat(weight) + weightChange;
-                                    newWeight = Math.max(0.05, newWeight); // Prevent negative weight
+                                    newWeight = Math.max(0.05, newWeight);
                                     return newWeight !== 1.0 ? `(${content}:${newWeight.toFixed(2)})` : content;
                                 });
                             } else {
@@ -99,44 +99,60 @@ app.registerExtension({
                         }
                         return currentToken === token ? newToken : currentToken;
                     });
-                
+
                     prompt.value = currentTokens.join(', ');
                 }
-                
 
                 function updateTokens() {
-                    const tokens = tokenize(prompt.value); //prompt.value.split(',').map(t => t.trim()).filter(t => t);
+                    const tokens = tokenize(prompt.value);
 
-                    // Create buttons for each token
                     while (token_div.firstChild) {
                         token_div.removeChild(token_div.firstChild);
                     }
-                    tokens.forEach(token => {
+
+                    tokens.forEach((token, index) => {
                         let button = $el("button", {
                             type: "button",
                             textContent: token.startsWith(DISABLED_TOKEN) ? token.slice(DISABLED_TOKEN_BYTES) : token,
                             style: {
-                                color: 'white'
+                                color: 'white',
+                                cursor: 'grab'
                             },
+                            draggable: true,
                             onclick: () => toggleToken(token, button),
-                            onwheel: (event) => adjustWeight(token, event)
+                            onwheel: (event) => adjustWeight(token, event),
+                            ondragstart: (event) => {
+                                event.dataTransfer.setData('text/plain', index);
+                            },
+                            ondragover: (event) => {
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = 'move';
+                            },
+                            ondrop: (event) => {
+                                event.preventDefault();
+                                const draggedIndex = event.dataTransfer.getData('text/plain');
+                                const targetIndex = index;
+                                swapTokens(draggedIndex, targetIndex);
+                            }
                         });
 
-                        if (token.startsWith(DISABLED_TOKEN)) {
-                            button.style.backgroundColor = 'gray';
-                        } else {
-                            button.style.backgroundColor = 'green';
-                        }
-
-                        token_div.appendChild(button)
+                        button.style.backgroundColor = token.startsWith(DISABLED_TOKEN) ? 'gray' : 'green';
+                        token_div.appendChild(button);
                     });
                 }
 
-                prompt.callback = async()=>{
+                function swapTokens(draggedIndex, targetIndex) {
+                    let currentTokens = tokenize(prompt.value);
+                    [currentTokens[draggedIndex], currentTokens[targetIndex]] = [currentTokens[targetIndex], currentTokens[draggedIndex]];
+                    prompt.value = currentTokens.join(', ');
                     updateTokens();
                 }
-                
-                this.addDOMWidget('values',"buttons",token_div)
+
+                prompt.callback = async () => {
+                    updateTokens();
+                }
+
+                this.addDOMWidget('values', "buttons", token_div);
 
                 return onNodeCreated;
             }
