@@ -141,9 +141,22 @@ app.registerExtension({
                     });
                 }
 
-                function swapTokens(draggedIndex, targetIndex) {
+                function _swapTokens(draggedIndex, targetIndex) {
                     let currentTokens = tokenize(prompt.value);
                     [currentTokens[draggedIndex], currentTokens[targetIndex]] = [currentTokens[targetIndex], currentTokens[draggedIndex]];
+                    prompt.value = currentTokens.join(', ');
+                    updateTokens();
+                }
+
+                function swapTokens(draggedIndex, targetIndex) {
+                    let currentTokens = tokenize(prompt.value);
+                    
+                    // Remove the dragged token from its original position
+                    const [draggedToken] = currentTokens.splice(draggedIndex, 1);
+                    
+                    // Insert the dragged token at the target position
+                    currentTokens.splice(targetIndex, 0, draggedToken);
+                    
                     prompt.value = currentTokens.join(', ');
                     updateTokens();
                 }
