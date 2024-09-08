@@ -16,10 +16,15 @@ import random
 import nltk
 import contextlib
 import codecs
+import logging
 
 import comfy, comfy_extras
 from comfy_extras.nodes_tomesd import TomePatchModel
 import comfy_extras.nodes_freelunch as nodes_freelunch
+
+from aiohttp import web
+from folder_paths import recursive_search, filter_files_extensions
+from server import PromptServer
 
 # ANSI escape codes for colors
 RED = '\033[91m'
@@ -326,6 +331,67 @@ class LoraLoaderOnlyModelByPath:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0.0)
         return (model_lora,)
 
+@PromptServer.instance.routes.post("/sp_nodes/lora_from_folder_list")
+async def lora_from_folder_list(request):
+    try:
+        data = await request.json()
+
+        lora_folder = data['lora_folder']
+        
+        files, folders_all = recursive_search(lora_folder, excluded_dir_names=['.git'])
+        files = filter_files_extensions(files, ['.safetensors'])
+        # logging.info(f'lora_folder: {lora_folder}, files: {files}')
+        
+
+        return web.json_response({'data': files})
+    finally:
+        pass
+    
+    return web.json_response({'data': []}) 
+
+class LoraLoaderFromFolder:
+    def __init__(self):
+        self.loaded_lora = None
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "clip": ("CLIP", ),
+                              "lora_folder": ("STRING", {"default": r""}),
+                              "lora_name": ([""],),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL", "CLIP")
+    FUNCTION = "load_lora"
+
+    CATEGORY = CATEGORY
+
+    def load_lora(self, model, clip, lora_folder, lora_name, strength_model, strength_clip):
+        if strength_model == 0 and strength_clip == 0:
+            return (model, clip)
+
+        lora_path = os.path.join(lora_folder, lora_name)
+        lora = None
+        if self.loaded_lora is not None:
+            if self.loaded_lora[0] == lora_path:
+                lora = self.loaded_lora[1]
+            else:
+                temp = self.loaded_lora
+                self.loaded_lora = None
+                del temp
+
+        if lora is None:
+            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            self.loaded_lora = (lora_path, lora)
+
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        return (model_lora, clip_lora)
+
+    @classmethod
+    def VALIDATE_INPUTS(s, lora_name):
+        return True
+
 class RandomPromptFromBook:
     def __init__(self) -> None:
         self._sentences: list[str] = None
@@ -468,6 +534,7 @@ NODE_CLASS_MAPPINGS = {
     "SendTelegramChatBot": SendTelegramChatBot,
     "LoraLoaderByPath": LoraLoaderByPath,
     "LoraLoaderOnlyModelByPath": LoraLoaderOnlyModelByPath,
+    "LoraLoaderFromFolder": LoraLoaderFromFolder,
     "RandomPromptFromBook": RandomPromptFromBook,
     "TextSplitJoinByDelimiter": TextSplitJoinByDelimiter,
     "StrToCombo": StrToCombo, 
