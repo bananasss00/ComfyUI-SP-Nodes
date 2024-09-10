@@ -9,7 +9,8 @@
     "SP-UnetSave": "SP_UnetSave",
     "SP_FluxFastMergePatchFP8 [Experimental]": "SP_FluxFastMergePatchFP8",
     "ImageMonitor": "ImageMonitor",
-    "FluxInspireLbwBatch": "FluxInspireLbwBatch",
+    "FluxInspireLbw_Batch": "FluxInspireLbw_Batch",
+    "FluxInspireLbw_BlockVectorPreset": "FluxInspireLbw_BlockVectorPreset",
     "SP_KoboldCpp": "SP_KoboldCpp",
     "Random_Model_Merge": "Random_Model_Merge",
     "GodnessMerger_Apply": "GodnessMerger_Apply",
@@ -35,5 +36,6 @@
     "PreviewImageWEBP": "PreviewImageWEBP",
     "SD3Multiply": "SD3Multiply",
     "SD3BlocksMultiply": "SD3BlocksMultiply",
-    "SP_WebsocketSendImage": "SP_WebsocketSendImage"
+    "SP_WebsocketSendImage": "SP_WebsocketSendImage",
+    "ComfyuiRuntimeArgs": "ComfyuiRuntimeArgs"
 }

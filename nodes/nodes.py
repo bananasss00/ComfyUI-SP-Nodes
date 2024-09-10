@@ -18,6 +18,9 @@ import contextlib
 import codecs
 import logging
 
+import comfy.model_management as mm
+from comfy.cli_args import args
+
 import comfy, comfy_extras
 from comfy_extras.nodes_tomesd import TomePatchModel
 import comfy_extras.nodes_freelunch as nodes_freelunch
@@ -355,21 +358,25 @@ class LoraLoaderFromFolder:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "clip": ("CLIP", ),
-                              "lora_folder": ("STRING", {"default": r""}),
-                              "lora_name": ([""],),
-                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
-                              }}
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "lora_folder": ("STRING", {"default": r""}),
+                "lora_name": ([""],),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "clip_opt": ("CLIP", ),
+            }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
     CATEGORY = CATEGORY
 
-    def load_lora(self, model, clip, lora_folder, lora_name, strength_model, strength_clip):
+    def load_lora(self, model, lora_folder, lora_name, strength_model, strength_clip, clip_opt=None):
         if strength_model == 0 and strength_clip == 0:
-            return (model, clip)
+            return (model, clip_opt)
 
         lora_path = os.path.join(lora_folder, lora_name)
         lora = None
@@ -385,7 +392,7 @@ class LoraLoaderFromFolder:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip_opt, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
     @classmethod
@@ -526,6 +533,46 @@ class StrToCombo:
 
         return value,
 
+class ComfyuiRuntimeArgs:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "fp8_mode": (["off", "fp8_e4m3fn", "fp8_e5m2"],),
+                "fast": ('BOOLEAN', {"default": False}),
+                "extra_reserved_vram_mb": ("INT", {"default": 600, "min": 400, "max": 24576, "step": 1}),
+                "disable_smart_memory": ('BOOLEAN', {"default": False}),
+            },
+            "optional": {
+                "optional":(ANY_TYPE, ),
+            }
+        }
+
+    RETURN_TYPES = ('STRING',)
+    RETURN_NAMES = ('args_str',)
+    FUNCTION = "doit"
+    OUTPUT_NODE = True
+    CATEGORY = CATEGORY
+
+    def doit(s, fp8_mode, fast, extra_reserved_vram_mb, disable_smart_memory, optional=None):
+        if fp8_mode == 'fp8_e4m3fn':
+            args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = True
+            args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = False
+        elif fp8_mode == 'fp8_e5m2':
+            args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = False
+            args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = True
+        else:
+            args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = False
+            args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = False
+
+        args.fast = fast
+
+        mm.EXTRA_RESERVED_VRAM = extra_reserved_vram_mb * 1024**2
+
+        mm.DISABLE_SMART_MEMORY = disable_smart_memory
+
+        return str('\n'.join(f'{a[0]}={a[1]}' for a in args._get_kwargs())), 
+
 
         
 NODE_CLASS_MAPPINGS = {
@@ -538,6 +585,7 @@ NODE_CLASS_MAPPINGS = {
     "RandomPromptFromBook": RandomPromptFromBook,
     "TextSplitJoinByDelimiter": TextSplitJoinByDelimiter,
     "StrToCombo": StrToCombo, 
+    "ComfyuiRuntimeArgs": ComfyuiRuntimeArgs, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

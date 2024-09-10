@@ -207,44 +207,10 @@ class ImageMonitor:
 
         return True
 
-
-class TESTER:
-    CATEGORY = CATEGORY
-    RETURN_TYPES = ("STRING",)
-    FUNCTION = "process"
-    counter = 0
-
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(s):
-        inputs = {
-            "required": {
-            },
-            "optional": {
-            },
-        }
-
-        return inputs
-
-    def process(self,):
-        return (f'val = {TESTER.counter}',)
-
-    @classmethod
-    def IS_CHANGED(s):
-        TESTER.counter += 1
-        print(TESTER.counter)
-        return (TESTER.counter  // 5) * 5
-
-        
-
 NODE_CLASS_MAPPINGS = {
     "ImageMonitor": ImageMonitor,
-    # "TESTER": TESTER,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageMonitor": "Image Monitor",
-    # "TESTER": "Image TESTER",
 }
