@@ -54,9 +54,9 @@ class FluxInspireLbw_Batch:
             return ','.join(block_vector)
         
         for i in range(0, self.blocks_count() + 1):
-            if self.is_double_block(i) and double_blocks == 'false':
+            if self.is_double_block(i) and not double_blocks:
                 continue
-            if self.is_single_block(i) and single_blocks == 'false':
+            if self.is_single_block(i) and not single_blocks:
                 continue
             if is_forced(i):
                 continue
