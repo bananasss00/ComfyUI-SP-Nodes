@@ -92,8 +92,8 @@ class FluxInspireLbw_BlockVectorPreset:
     def INPUT_TYPES(self):
         inputs = {
             "required": {
-                "enable_double_blocks": ("STRING", {"default": '1,2,3', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
-                "enable_single_blocks": ("STRING", {"default": '1,2,3', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
+                "enable_double_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
+                "enable_single_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
             },
             "optional": {
 

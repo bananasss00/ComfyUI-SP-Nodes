@@ -12,6 +12,7 @@
     "FluxInspireLbw_Batch": "FluxInspireLbw_Batch",
     "FluxInspireLbw_BlockVectorPreset": "FluxInspireLbw_BlockVectorPreset",
     "SP_KoboldCpp": "SP_KoboldCpp",
+    "SP_KoboldCppWithContext": "SP_KoboldCppWithContext",
     "Random_Model_Merge": "Random_Model_Merge",
     "GodnessMerger_Apply": "GodnessMerger_Apply",
     "GodnessMerger_RAW_Apply": "GodnessMerger_RAW_Apply",

@@ -18,8 +18,9 @@ class LLMMode:
         self._assistant_tag = assistant_tag
         self.stop_sequence = [user_tag.strip(), assistant_tag.strip()]
 
-    def memory(self):
-        return f'{self._system_tag}{self._sys_prompt}\n\n'
+    def memory(self, context):
+        sys_prompt = f'{self._system_tag}{self._sys_prompt}\n' if self._sys_prompt else ''
+        return f'{sys_prompt}{context}\n'
     
     def prompt(self, prompt):
         return f'{self._user_tag}{prompt}{self._assistant_tag}'
@@ -129,7 +130,7 @@ class Mistral_LLMMode(LLMMode):
             assistant_tag=' [/INST]\n')
 
 
-def generate_text(api_url, system_prompt, prompt, temperature_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
+def generate_text(api_url, system_prompt, context, prompt, temperature_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
     endpoint = f'{api_url}/generate'
     headers = {
         'Content-Type': 'application/json'
@@ -161,7 +162,7 @@ def generate_text(api_url, system_prompt, prompt, temperature_override=0, llm_mo
         # "max_context_length": 8192, 
         "max_length": max_length, 
         'prompt': mode.prompt(prompt) ,#f"\nUser:{prompt}\nAI:",
-        'memory': mode.memory(), #system_prompt,
+        'memory': mode.memory(context), #system_prompt,
         "sampler_seed": seed,
         # "dry_sequence_breakers": ["\n", ":", "\"", "*"],
         "trim_stop": True,
@@ -225,9 +226,41 @@ class SP_KoboldCpp:
     CATEGORY = "SP-Nodes"
 
     def fn(self, api_url, system_prompt, prompt, llm_mode, preset, temperature_override, max_length, seed):
-        return generate_text(api_url, system_prompt, prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
+        return generate_text(api_url, system_prompt, '', prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
 
+class SP_KoboldCppWithContext:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {
+                        "api_url": ("STRING", {"default": API_URL, "multiline": False}),
+                        "system_prompt": ("STRING", {"default": system_prompt, "multiline": True}),
+                        "context": ("STRING", {"default": '', "multiline": True}),
+                        "prompt": ("STRING", {"default": '', "multiline": True}),
+                        "llm_mode": (['Chat', 'Alpaca', 'Vicuna', 'Metharme',
+                            'Llama2Chat', 'QuestionAnswer', 'ChatML',
+                            'InputOutput', 'CommandR', 'Llama3Chat', 
+                            'Phi3Mini', 'Gemma2', 'Mistral'], ),
+                        "preset": (['simple_logical', 'default', 'simple_balanced',
+                                    'simple_creative', 'silly_tavern', 'coherent_creativity',
+                                    'godlike', 'liminal_drift'], ),
+                        "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
+                        "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
+                        "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    },
+                }
+
+    RETURN_TYPES = ('STRING',)
+    FUNCTION = "fn"
+
+    OUTPUT_NODE = False
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, api_url, system_prompt, context, prompt, llm_mode, preset, temperature_override, max_length, seed):
+        return generate_text(api_url, system_prompt, context, prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
 
 NODE_CLASS_MAPPINGS = {
     "SP_KoboldCpp": SP_KoboldCpp,
+    "SP_KoboldCppWithContext": SP_KoboldCppWithContext,
 }
