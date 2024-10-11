@@ -133,6 +133,10 @@ app.registerExtension({
                                 const draggedIndex = event.dataTransfer.getData('text/plain');
                                 const targetIndex = index;
                                 swapTokens(draggedIndex, targetIndex);
+                            },
+                            oncontextmenu: (event) => {
+                                event.preventDefault();
+                                removeToken(token);
                             }
                         });
 
@@ -157,6 +161,13 @@ app.registerExtension({
                     // Insert the dragged token at the target position
                     currentTokens.splice(targetIndex, 0, draggedToken);
                     
+                    prompt.value = currentTokens.join(', ');
+                    updateTokens();
+                }
+
+                function removeToken(token) {
+                    let currentTokens = tokenize(prompt.value);
+                    currentTokens = currentTokens.filter(currentToken => currentToken !== token);
                     prompt.value = currentTokens.join(', ');
                     updateTokens();
                 }

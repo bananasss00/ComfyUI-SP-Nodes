@@ -26,6 +26,14 @@ class PromptChecker:
     FUNCTION = "doit"
     CATEGORY = CATEGORY
 
+    DESCRIPTION = """This node allows you to manage tokens separated by commas, similar to the functionality provided by the WebUI extension sd-webui-prompt-all-in-one.
+
+-Left-click (LMB) to disable a token.
+-Drag and Drop to reorder tokens.
+-Right-click (RMB) to delete a token.
+-Mouse Wheel (scroll up/down) to increase or decrease a token's weight.
+"""
+
     def doit(s, prompt, seed, **kwargs):
         tokens = [t for t in s.tokenize(prompt) if not t.startswith(DISABLED_TOKEN)]
         prompt = ', '.join(tokens)

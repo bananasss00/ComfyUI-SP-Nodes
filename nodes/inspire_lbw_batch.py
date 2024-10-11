@@ -1,3 +1,13 @@
+import math
+
+def round_if_close(num, tol=1e-5):
+    nearest_int = round(num)
+    
+    if abs(num - nearest_int) <= tol:
+        return nearest_int
+    else:
+        return num
+    
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
 
@@ -18,6 +28,7 @@ class FluxInspireLbw_Batch:
                 "force_double_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
                 "force_single_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
                 "forced_block_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.1}),
+                "reverse_mode": ("BOOLEAN", {"default": False}),
             },
             "optional": {
 
@@ -33,7 +44,10 @@ class FluxInspireLbw_Batch:
 
     CATEGORY = 'SP-Nodes'
 
-    def process_blocks(self, block_strength, double_blocks, single_blocks, force_double_blocks, force_single_blocks, forced_block_strength) -> str:
+    def process_blocks(self, block_strength, double_blocks, single_blocks, force_double_blocks, force_single_blocks, forced_block_strength, reverse_mode) -> str:
+        block_strength = round_if_close(block_strength, tol=1e-5)
+        forced_block_strength = round_if_close(forced_block_strength, tol=1e-5)
+
         block_vector_batch = []
         block_num_batch = []
         summary = []
@@ -48,9 +62,15 @@ class FluxInspireLbw_Batch:
             block_vector = ['1']
             for i in range(0, self.blocks_count() + 1):
                 if is_forced(i):
-                    block_vector.append(str(forced_block_strength))
+                    block_vector.append(str(forced_block_strength) if not reverse_mode else '0')
                 else:
-                    block_vector.append(str(block_strength) if i == n else '0')
+                    # if not reverse_mode:
+                    #     value = str(block_strength) if i == n else '0'
+                    # else:
+                    #     value = str(block_strength) if i != n else '0'
+                    value = str(block_strength if (i != n) ^ (not reverse_mode) else '0')
+                    block_vector.append(value)
+                    
             return ','.join(block_vector)
         
         for i in range(0, self.blocks_count() + 1):
@@ -94,6 +114,7 @@ class FluxInspireLbw_BlockVectorPreset:
             "required": {
                 "enable_double_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
                 "enable_single_blocks": ("STRING", {"default": '', 'multiline': True, "dynamicPrompts": False, "tooltip": "example: 1,5,6,8"}),
+                "reverse_mode": ("BOOLEAN", {"default": False}),
             },
             "optional": {
 
@@ -108,17 +129,20 @@ class FluxInspireLbw_BlockVectorPreset:
 
     CATEGORY = 'SP-Nodes'
 
-    def process(self, enable_double_blocks, enable_single_blocks):
+    def process(self, enable_double_blocks, enable_single_blocks, reverse_mode):
         enable_double_blocks = [int(b.strip()) for b in enable_double_blocks.strip().split(',')] if enable_double_blocks else []
         enable_single_blocks = [int(b.strip()) for b in enable_single_blocks.split(',')] if enable_single_blocks else []
+
+        if len(enable_double_blocks) == 0 and len(enable_single_blocks) == 0:
+            return ('1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1', )
 
         preset = ['1']
         for i in range(self.DOUBLE_BLOCKS + self.SINGLE_BLOCKS + 1):
             if i < self.DOUBLE_BLOCKS and i in enable_double_blocks or \
                i >= self.DOUBLE_BLOCKS and i - self.DOUBLE_BLOCKS in enable_single_blocks:
-                preset.append('1')
+                preset.append('1' if not reverse_mode else '0')
             else:
-                preset.append('0')
+                preset.append('0' if not reverse_mode else '1')
 
         return (','.join(preset), )    
 

@@ -392,7 +392,15 @@ class LoraLoaderFromFolder:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip_opt, lora, strength_model, strength_clip)
+        clip = clip_opt
+        if abs(strength_clip) < 1e-5:
+            clip = None
+
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+
+        if abs(strength_clip) < 1e-5 and clip_opt:
+            clip_lora = clip_opt
+            
         return (model_lora, clip_lora)
 
     @classmethod
