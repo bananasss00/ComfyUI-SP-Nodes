@@ -38,5 +38,6 @@
     "SD3Multiply": "SD3Multiply",
     "SD3BlocksMultiply": "SD3BlocksMultiply",
     "SP_WebsocketSendImage": "SP_WebsocketSendImage",
-    "ComfyuiRuntimeArgs": "ComfyuiRuntimeArgs"
+    "ComfyuiRuntimeArgs": "ComfyuiRuntimeArgs",
+    "NoiseInjectionEssentialsHookProvider": "NoiseInjectionEssentialsHookProvider"
 }
