@@ -1,3 +1,4 @@
+import json
 import requests, math
 
 API_URL = 'http://localhost:5001/api/v1'
@@ -130,7 +131,7 @@ class Mistral_LLMMode(LLMMode):
             assistant_tag=' [/INST]\n')
 
 
-def generate_text(api_url, system_prompt, context, prompt, temperature_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
+def generate_text(api_url, system_prompt, context, prompt, temperature_override=0, minp_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
     endpoint = f'{api_url}/generate'
     headers = {
         'Content-Type': 'application/json'
@@ -189,13 +190,19 @@ def generate_text(api_url, system_prompt, context, prompt, temperature_override=
         print(f'temperature_override: {temperature_override}')
         payload["temperature"] = temperature_override
     
+    if not math.isclose(minp_override, 0, abs_tol=1e-4):
+        print(f'minp_override: {minp_override}')
+        payload["min_p"] = minp_override
+    
     response = requests.post(endpoint, json=payload, headers=headers)
     
+    preset_cfg = json.dumps(payload, indent=4)
+
     if response.status_code == 200:
         text = response.json()['results'][0]['text']
-        return text
+        return text, preset_cfg
     else:
-        return f'Error: {response.status_code} - {response.text}'
+        return f'Error: {response.status_code} - {response.text}', preset_cfg
     
 class SP_KoboldCpp:
     @classmethod
@@ -213,20 +220,23 @@ class SP_KoboldCpp:
                                     'simple_creative', 'silly_tavern', 'coherent_creativity',
                                     'godlike', 'liminal_drift'], ),
                         "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
+                        "minp_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
                 }
 
-    RETURN_TYPES = ('STRING',)
+    RETURN_TYPES = ('STRING','STRING')
+    RETURN_NAMES = ('text','payload')
     FUNCTION = "fn"
 
     OUTPUT_NODE = False
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, temperature_override, max_length, seed):
-        return generate_text(api_url, system_prompt, '', prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
+    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, temperature_override, minp_override, max_length, seed):
+        text, payload = generate_text(api_url, system_prompt, '', prompt, temperature_override, minp_override, llm_mode, preset, max_length=max_length, seed=seed)
+        return text.replace('User:', ''), payload
 
 class SP_KoboldCppWithContext:
     @classmethod
@@ -245,20 +255,23 @@ class SP_KoboldCppWithContext:
                                     'simple_creative', 'silly_tavern', 'coherent_creativity',
                                     'godlike', 'liminal_drift'], ),
                         "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
+                        "minp_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
                 }
 
-    RETURN_TYPES = ('STRING',)
+    RETURN_TYPES = ('STRING','STRING')
+    RETURN_NAMES = ('text','payload')
     FUNCTION = "fn"
 
     OUTPUT_NODE = False
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, api_url, system_prompt, context, prompt, llm_mode, preset, temperature_override, max_length, seed):
-        return generate_text(api_url, system_prompt, context, prompt, temperature_override, llm_mode, preset, max_length=max_length, seed=seed).replace('User:', ''),
+    def fn(self, api_url, system_prompt, context, prompt, llm_mode, preset, temperature_override, minp_override, max_length, seed):
+        text, payload = generate_text(api_url, system_prompt, context, prompt, temperature_override, minp_override, llm_mode, preset, max_length=max_length, seed=seed)
+        return text.replace('User:', ''), payload
 
 NODE_CLASS_MAPPINGS = {
     "SP_KoboldCpp": SP_KoboldCpp,
