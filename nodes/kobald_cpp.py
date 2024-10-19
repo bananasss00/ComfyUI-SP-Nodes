@@ -134,11 +134,13 @@ class Mistral_LLMMode(LLMMode):
             assistant_tag=' [/INST]\n')
 
 class OverrideCfg:
-    def __init__(self, temperature, min_p, xtc_probability, xtc_threshold, dynatemp_range=0, dry_multiplier=0, dry_base=1.75, dry_allowed_length=2):
+    def __init__(self, temperature, min_p, xtc_probability, xtc_threshold, smoothing_factor, smoothing_curve, dynatemp_range=0, dry_multiplier=0, dry_base=1.75, dry_allowed_length=2):
         self.temperature = temperature
         self.min_p = min_p
         self.xtc_probability = xtc_probability
         self.xtc_threshold = xtc_threshold
+        self.smoothing_factor = smoothing_factor
+        self.smoothing_curve = smoothing_curve
         self.dynatemp_range = dynatemp_range
         self.dry_multiplier = dry_multiplier
         self.dry_base = dry_base
@@ -154,6 +156,10 @@ class OverrideCfg:
         if not self.is_null(self.xtc_probability):
             payload["xtc_probability"] = self.xtc_probability
             payload["xtc_threshold"] = self.xtc_threshold
+
+        if not self.is_null(self.smoothing_factor):
+            payload["smoothing_factor"] = self.smoothing_factor
+            payload["smoothing_curve"] = self.smoothing_curve
 
         if not self.is_null(self.dynatemp_range):
             payload["dynatemp_range"] = self.dynatemp_range
@@ -247,6 +253,8 @@ class SP_KoboldCpp_OverrideCfg:
                         "min_p": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "xtc_probability": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "xtc_threshold": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                        "smoothing_factor": ("FLOAT", {"default": 0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                        "smoothing_curve": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                         # "dry_multiplier": ("FLOAT", {"default": 0, "min": 0.0, "max": 100.0, "step": 0.01}),
                         # "dry_base": ("FLOAT", {"default": 1.75, "min": 0.0, "max": 8, "step": 0.01}),
                         # "dry_allowed_length": ("INT", {"default": 2, "min": 0, "max": 100, "step": 1}),
@@ -261,8 +269,8 @@ class SP_KoboldCpp_OverrideCfg:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, temperature, dynatemp_range, min_p, xtc_probability, xtc_threshold):
-        return OverrideCfg(temperature=temperature, dynatemp_range=dynatemp_range, min_p=min_p, xtc_probability=xtc_probability, xtc_threshold=xtc_threshold),
+    def fn(self, temperature, dynatemp_range, min_p, xtc_probability, xtc_threshold, smoothing_factor, smoothing_curve):
+        return OverrideCfg(temperature=temperature, dynatemp_range=dynatemp_range, min_p=min_p, xtc_probability=xtc_probability, xtc_threshold=xtc_threshold, smoothing_factor=smoothing_factor, smoothing_curve=smoothing_curve),
     
 class SP_KoboldCpp:
     @classmethod
