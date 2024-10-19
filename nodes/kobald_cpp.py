@@ -1,4 +1,7 @@
+from collections import OrderedDict
+import copy
 import json
+import logging
 import requests, math
 
 API_URL = 'http://localhost:5001/api/v1'
@@ -130,8 +133,36 @@ class Mistral_LLMMode(LLMMode):
             user_tag='\n[INST] ',
             assistant_tag=' [/INST]\n')
 
+class OverrideCfg:
+    def __init__(self, temperature, min_p, xtc_probability, xtc_threshold, dry_multiplier, dry_base, dry_allowed_length):
+        self.temperature = temperature
+        self.min_p = min_p
+        self.xtc_probability = xtc_probability
+        self.xtc_threshold = xtc_threshold
+        self.dry_multiplier = dry_multiplier
+        self.dry_base = dry_base
+        self.dry_allowed_length = dry_allowed_length
 
-def generate_text(api_url, system_prompt, context, prompt, temperature_override=0, minp_override=0, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
+    def apply(self, payload):
+        if not self.is_null(self.temperature):
+            payload["temperature"] = self.temperature
+        
+        if not self.is_null(self.min_p):
+            payload["min_p"] = self.min_p
+        
+        if not self.is_null(self.xtc_probability):
+            payload["xtc_probability"] = self.xtc_probability
+            payload["xtc_threshold"] = self.xtc_threshold
+
+        if not self.is_null(self.dry_multiplier):
+            payload["dry_multiplier"] = self.dry_multiplier
+            payload["dry_base"] = self.dry_base
+            payload["dry_allowed_length"] = self.dry_allowed_length
+
+    def is_null(self, value):
+        return math.isclose(value, 0, abs_tol=1e-4)
+
+def generate_text(api_url, system_prompt, context, prompt, override_cfg: OverrideCfg = None, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
     endpoint = f'{api_url}/generate'
     headers = {
         'Content-Type': 'application/json'
@@ -165,7 +196,6 @@ def generate_text(api_url, system_prompt, context, prompt, temperature_override=
         'prompt': mode.prompt(prompt) ,#f"\nUser:{prompt}\nAI:",
         'memory': mode.memory(context), #system_prompt,
         "sampler_seed": seed,
-        # "dry_sequence_breakers": ["\n", ":", "\"", "*"],
         "trim_stop": True,
         "stop_sequence": mode.stop_sequence, #["User:", "\nUser ", "\nAI: "],
         "quiet": True,
@@ -176,23 +206,22 @@ def generate_text(api_url, system_prompt, context, prompt, temperature_override=
         "dry_allowed_length": 2,
         "dry_base": 1.75,
         "dry_multiplier": 0,
+        "dry_penalty_last_n": 360,
+        "dry_sequence_breakers": ["\n", ":", "\"", "*"],
         "render_special": False,
         "banned_tokens": [],
         "smoothing_factor": 0,
         "dynatemp_exponent": 1,
         "dynatemp_range": 0,
-        "min_p": 0
+        "min_p": 0,
+        "xtc_probability": 0,
+        "xtc_threshold": 0.5
     }
 
     payload.update(preset_dict)
 
-    if not math.isclose(temperature_override, 0, abs_tol=1e-4):
-        print(f'temperature_override: {temperature_override}')
-        payload["temperature"] = temperature_override
-    
-    if not math.isclose(minp_override, 0, abs_tol=1e-4):
-        print(f'minp_override: {minp_override}')
-        payload["min_p"] = minp_override
+    if override_cfg is not None:
+        override_cfg.apply(payload=payload)
     
     response = requests.post(endpoint, json=payload, headers=headers)
     
@@ -203,6 +232,32 @@ def generate_text(api_url, system_prompt, context, prompt, temperature_override=
         return text, preset_cfg
     else:
         return f'Error: {response.status_code} - {response.text}', preset_cfg
+
+class SP_KoboldCpp_OverrideCfg:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {
+                        "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
+                        "min_p": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                        "xtc_probability": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                        "xtc_threshold": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                        "dry_multiplier": ("FLOAT", {"default": 0, "min": 0.0, "max": 100.0, "step": 0.01}),
+                        "dry_base": ("FLOAT", {"default": 1.75, "min": 0.0, "max": 8, "step": 0.01}),
+                        "dry_allowed_length": ("INT", {"default": 2, "min": 0, "max": 100, "step": 1}),
+                    },
+                
+                }
+
+    RETURN_TYPES = ('OVERRIDE_CFG',)
+    FUNCTION = "fn"
+
+    OUTPUT_NODE = False
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, temperature, min_p, xtc_probability, xtc_threshold, dry_multiplier, dry_base, dry_allowed_length):
+        return OverrideCfg(temperature, min_p, xtc_probability, xtc_threshold, dry_multiplier, dry_base, dry_allowed_length),
     
 class SP_KoboldCpp:
     @classmethod
@@ -219,11 +274,12 @@ class SP_KoboldCpp:
                         "preset": (['simple_logical', 'default', 'simple_balanced',
                                     'simple_creative', 'silly_tavern', 'coherent_creativity',
                                     'godlike', 'liminal_drift'], ),
-                        "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
-                        "minp_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
+                    "optional": {
+                        "override_cfg": ("OVERRIDE_CFG", ),
+                    }
                 }
 
     RETURN_TYPES = ('STRING','STRING')
@@ -234,18 +290,31 @@ class SP_KoboldCpp:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, temperature_override, minp_override, max_length, seed):
-        text, payload = generate_text(api_url, system_prompt, '', prompt, temperature_override, minp_override, llm_mode, preset, max_length=max_length, seed=seed)
+    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, max_length, seed, context='', override_cfg=None):
+        text, payload = generate_text(api_url, system_prompt, context, prompt, override_cfg, llm_mode, preset, max_length=max_length, seed=seed)
         return text.replace('User:', ''), payload
 
-class SP_KoboldCppWithContext:
+class SP_KoboldCppWithContext(SP_KoboldCpp):
+    # @classmethod
+    # def INPUT_TYPES(s):
+    #     d = copy.deepcopy(SP_KoboldCpp.INPUT_TYPES())
+
+    #     items = list(d.items())
+    #     # insert context field after system_prompt
+    #     index = next(i for i, (k, _) in enumerate(items) if k == 'system_prompt') + 1
+    #     items.insert(index, ('context', ("STRING", {"default": '', "multiline": True})))
+
+    #     d = dict(OrderedDict(items))
+    #     print(f'DICT: {d}')
+    #     return d
+    
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
                     {
                         "api_url": ("STRING", {"default": API_URL, "multiline": False}),
                         "system_prompt": ("STRING", {"default": system_prompt, "multiline": True}),
-                        "context": ("STRING", {"default": '', "multiline": True}),
+                        'context': ("STRING", {"default": '', "multiline": True}),
                         "prompt": ("STRING", {"default": '', "multiline": True}),
                         "llm_mode": (['Chat', 'Alpaca', 'Vicuna', 'Metharme',
                             'Llama2Chat', 'QuestionAnswer', 'ChatML',
@@ -254,26 +323,16 @@ class SP_KoboldCppWithContext:
                         "preset": (['simple_logical', 'default', 'simple_balanced',
                                     'simple_creative', 'silly_tavern', 'coherent_creativity',
                                     'godlike', 'liminal_drift'], ),
-                        "temperature_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05}),
-                        "minp_override": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                         "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
+                    "optional": {
+                        "override_cfg": ("OVERRIDE_CFG", ),
+                    }
                 }
-
-    RETURN_TYPES = ('STRING','STRING')
-    RETURN_NAMES = ('text','payload')
-    FUNCTION = "fn"
-
-    OUTPUT_NODE = False
-
-    CATEGORY = "SP-Nodes"
-
-    def fn(self, api_url, system_prompt, context, prompt, llm_mode, preset, temperature_override, minp_override, max_length, seed):
-        text, payload = generate_text(api_url, system_prompt, context, prompt, temperature_override, minp_override, llm_mode, preset, max_length=max_length, seed=seed)
-        return text.replace('User:', ''), payload
 
 NODE_CLASS_MAPPINGS = {
     "SP_KoboldCpp": SP_KoboldCpp,
     "SP_KoboldCppWithContext": SP_KoboldCppWithContext,
+    "SP_KoboldCpp_OverrideCfg": SP_KoboldCpp_OverrideCfg,
 }
