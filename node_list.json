@@ -40,5 +40,9 @@
     "SD3BlocksMultiply": "SD3BlocksMultiply",
     "SP_WebsocketSendImage": "SP_WebsocketSendImage",
     "ComfyuiRuntimeArgs": "ComfyuiRuntimeArgs",
-    "NoiseInjectionEssentialsHookProvider": "NoiseInjectionEssentialsHookProvider"
+    "NoiseInjectionEssentialsHookProvider": "NoiseInjectionEssentialsHookProvider",
+    "SP_HiresGen_Dynamic": "SP_HiresGen_Dynamic",
+    "SP_HiresGen_HiresCfg": "SP_HiresGen_HiresCfg",
+    "SP_HiresGen_Sharpen": "SP_HiresGen_Sharpen",
+    "SP_HiresGen": "SP_HiresGen"
 }
