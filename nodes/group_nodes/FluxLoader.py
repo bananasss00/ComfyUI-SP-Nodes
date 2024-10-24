@@ -297,8 +297,8 @@ class SP_SDLoader:
         }
         return inputs
 
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING")
-    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative")
+    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
     FUNCTION = "fn"
 
     def fn(
@@ -344,7 +344,7 @@ class SP_SDLoader:
         sp_pipe = graph.SP_Pipe(None, model, clip, vae, pos, neg, latent, None)
 
         return {
-            "result": (sp_pipe, model, clip, vae, pos, neg),
+            "result": (sp_pipe, model, clip, vae, pos, neg, latent),
             "expand": graph.finalize(),
         }
 
@@ -539,9 +539,9 @@ class SP_FluxLoader:
             "optional": {},
         }
         return inputs
-
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING")
-    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive")
+    
+    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "latent")
     FUNCTION = "fn"
 
     def fn(
@@ -599,7 +599,7 @@ class SP_FluxLoader:
         )
 
         return {
-            "result": (sp_pipe, model, clip, vae, conditioning),
+            "result": (sp_pipe, model, clip, vae, conditioning, latent),
             "expand": graph.finalize(),
         }
 
