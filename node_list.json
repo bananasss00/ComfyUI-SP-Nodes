@@ -44,5 +44,8 @@
     "SP_HiresGen_Dynamic": "SP_HiresGen_Dynamic",
     "SP_HiresGen_HiresCfg": "SP_HiresGen_HiresCfg",
     "SP_HiresGen_Sharpen": "SP_HiresGen_Sharpen",
-    "SP_HiresGen": "SP_HiresGen"
+    "SP_HiresGen": "SP_HiresGen",
+    "SP_Pipe": "SP_Pipe",
+    "SP_FluxLoader": "SP_FluxLoader",
+    "SP_FluxKSampler": "SP_FluxKSampler"
 }
