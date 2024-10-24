@@ -46,6 +46,8 @@
     "SP_HiresGen_Sharpen": "SP_HiresGen_Sharpen",
     "SP_HiresGen": "SP_HiresGen",
     "SP_Pipe": "SP_Pipe",
+    "SP_SDLoader": "SP_SDLoader",
+    "SP_SDKSampler": "SP_SDKSampler",
     "SP_FluxLoader": "SP_FluxLoader",
     "SP_FluxKSampler": "SP_FluxKSampler"
 }
