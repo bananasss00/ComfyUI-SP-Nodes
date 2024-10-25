@@ -707,7 +707,7 @@ class SP_FluxKSampler:
 
         latent = None
         if image is not None:
-            latent = graph.VAEDecode(image, vae, tile_size)
+            latent = graph.VAEEncode(image, vae, tile_size)
         elif latent_image:
             latent = latent_image
         else:
