@@ -1,5 +1,7 @@
 import folder_paths, nodes, logging, comfy
-from comfy_execution.graph_utils import GraphBuilder
+from comfy_execution.graph import DynamicPrompt
+
+from .Graph import Graph
 
 
 MAX_RESOLUTION = 16384
@@ -58,6 +60,79 @@ CONTEXT = {
     "image": "IMAGE",
 }
 
+def ksampler_main(sp_pipe,
+        seed,
+        steps,
+        cfg,
+        sampler_name,
+        scheduler,
+        denoise,
+        tile_size,
+        vae_decode,
+        preview,
+        model=None,
+        latent_image=None,
+        image=None):
+    graph = Graph()
+
+    # get values from linked pipe. all values also LINKS!
+    sp_pipe, pipe_model, clip, vae, positive, negative, latent, pipe_image = graph.SP_Pipe(sp_pipe)
+
+    model = graph.AnySwitch(model, pipe_model)
+
+    def get_prior_latent(image, pipe_image, latent_image, latent):
+        # workflow: .assets\select_latent_or_encoded_latent_ref.png
+        
+        # Selects the image that is not None, either from the first or second input.
+        image = graph.AnySwitch(image, pipe_image)
+
+        # Checks if 'image' is None or not and returns a boolean flag.
+        # 'image_not_none' will be True if 'image' is valid (not None).
+        _, image_not_none = graph.ImpactIfNone(any_input=image)
+
+        # Encodes the selected image into a latent representation using the VAE.
+        # If 'tile_size' is specified, the encoding will be tiled accordingly.
+        encoded_latent = graph.VAEEncode(image, vae, tile_size)
+
+        # Selects the latent image that is not None from two possible inputs.
+        latent = graph.AnySwitch(latent_image, latent)
+
+        # If the 'image' was valid (not None), use 'encoded_latent'.
+        # Otherwise, use the pre-generated latent from the pipeline or a custom one provided to the node.
+        latent = graph.ImpactConditionalBranch(
+            tt_value=encoded_latent,  # Use this if 'image_not_none' is True.
+            ff_value=latent,          # Use this if 'image_not_none' is False.
+            cond=image_not_none       # Condition based on whether 'image' was valid.
+        )
+        
+        return latent
+    
+    latent = get_prior_latent(image, pipe_image, latent_image, latent)
+    
+    latent = graph.KSampler(
+        model,
+        positive,
+        negative,
+        latent,
+        seed,
+        steps,
+        cfg,
+        sampler_name,
+        scheduler,
+        denoise,
+    )
+
+    image = None
+    if vae_decode or preview:
+        image = graph.VAEDecode(latent, vae, tile_size)
+
+        if preview:
+            graph.PreviewImage(image)
+
+    return {
+        "result": (latent, image),
+        "expand": graph.finalize(),
+    }
 
 class SP_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -85,168 +160,6 @@ class SP_Pipe:
             sp_pipe[k] = v
 
         return tuple([sp_pipe, *sp_pipe.values()])
-
-
-class Graph:
-    def __init__(self):
-        self.graph = GraphBuilder()
-
-    def finalize(self):
-        return self.graph.finalize()
-
-    def CheckpointLoaderSimple(self, ckpt_name):
-        load_checkpoint = self.graph.node("CheckpointLoaderSimple", ckpt_name=ckpt_name)
-        return load_checkpoint.out(0), load_checkpoint.out(1), load_checkpoint.out(2)
-
-    def VAELoader(self, vae_name):
-        load_vae = self.graph.node("VAELoader", vae_name=vae_name)
-        return load_vae.out(0)
-
-    def LoraLoader(self, model, clip, lora_name, lora_strength):
-        node = self.graph.node(
-            "LoraLoader",
-            model=model,
-            clip=clip,
-            lora_name=lora_name,
-            strength_model=lora_strength,
-            strength_clip=lora_strength,
-        )
-        return node.out(0), node.out(1)
-
-    def CLIPSetLastLayer(self, clip, stop_at_clip_layer):
-        clip_set_last_layer = self.graph.node(
-            "CLIPSetLastLayer", clip=clip, stop_at_clip_layer=stop_at_clip_layer
-        )
-        return clip_set_last_layer.out(0)
-
-    def CLIPTextEncode(self, clip, text):
-        return self.graph.node("CLIPTextEncode", clip=clip, text=text).out(0)
-
-    def EmptyLatentImage(self, width, height, batch_size):
-        return self.graph.node(
-            "EmptyLatentImage",
-            width=width,
-            height=height,
-            batch_size=batch_size,
-        ).out(0)
-
-    def EmptySD3LatentImage(self, width, height, batch_size):
-        return self.graph.node(
-            "EmptySD3LatentImage",
-            width=width,
-            height=height,
-            batch_size=batch_size,
-        ).out(0)
-
-    def SP_Pipe(
-        self,
-        sp_pipe,
-        model,
-        clip,
-        vae,
-        positive,
-        negative,
-        latent,
-        image,
-    ):
-        return self.graph.node(
-            "SP_Pipe",
-            sp_pipe=sp_pipe,
-            model=model,
-            clip=clip,
-            vae=vae,
-            positive=positive,
-            negative=negative,
-            latent=latent,
-            image=image,
-        ).out(0)
-
-    def VAEEncode(self, image, vae, tile_size=0):
-        node = self.graph.node(
-            "VAEEncodeTiled" if tile_size else "VAEEncode",
-            pixels=image,
-            vae=vae,
-            tile_size=tile_size,
-        )
-        return node.out(0)
-
-    def VAEDecode(self, latent, vae, tile_size=0):
-        node = self.graph.node(
-            "VAEDecodeTiled" if tile_size else "VAEDecode",
-            samples=latent,
-            vae=vae,
-            tile_size=tile_size,
-        )
-        return node.out(0)
-
-    def KSampler(
-        self,
-        model,
-        positive,
-        negative,
-        latent_image,
-        seed,
-        steps,
-        cfg,
-        sampler_name,
-        scheduler,
-        denoise,
-    ):
-        node = self.graph.node(
-            "KSampler",
-            model=model,
-            positive=positive,
-            negative=negative,
-            latent_image=latent_image,
-            seed=seed,
-            steps=steps,
-            cfg=cfg,
-            sampler_name=sampler_name,
-            scheduler=scheduler,
-            denoise=denoise,
-        )
-        return node.out(0)
-
-    def PreviewImage(self, image):
-        self.graph.node("PreviewImage", images=image)
-
-    def UNETLoader(self, unet_name, weight_dtype):
-        return self.graph.node(
-            "UNETLoader", unet_name=unet_name, weight_dtype=weight_dtype
-        ).out(0)
-
-    def SP_UnetLoaderBNB(self, unet_name, load_dtype):
-        return self.graph.node(
-            "SP_UnetLoaderBNB",
-            unet_name=unet_name,
-            load_dtype=load_dtype,
-        ).out(0)
-
-    def UnetLoaderGGUF(self, unet_name):
-        return self.graph.node("UnetLoaderGGUF", unet_name=unet_name).out(0)
-
-    def DualCLIPLoaderGGUF(self, clip_name1, clip_name2, type):
-        return self.graph.node(
-            "DualCLIPLoaderGGUF",
-            clip_name1=clip_name1,
-            clip_name2=clip_name2,
-            type=type,
-        ).out(0)
-
-    def FluxGuidance(self, conditioning, guidance):
-        return self.graph.node(
-            "FluxGuidance", conditioning=conditioning, guidance=guidance
-        ).out(0)
-
-    def ModelSamplingFlux(self, model, max_shift, base_shift, width, height):
-        return self.graph.node(
-            "ModelSamplingFlux",
-            model=model,
-            max_shift=max_shift,
-            base_shift=base_shift,
-            width=width,
-            height=height,
-        ).out(0)
 
 
 class SP_SDLoader:
@@ -341,20 +254,19 @@ class SP_SDLoader:
 
         latent = graph.EmptyLatentImage(empty_latent_width, empty_latent_height, 1)
 
-        sp_pipe = graph.SP_Pipe(None, model, clip, vae, pos, neg, latent, None)
+        sp_pipe = graph.SP_Pipe(None, model, clip, vae, pos, neg, latent, None)[0]
 
         return {
             "result": (sp_pipe, model, clip, vae, pos, neg, latent),
             "expand": graph.finalize(),
         }
 
-
 class SP_SDKSampler:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "sp_pipe": ("SP_PIPE",),
+                "sp_pipe": ("SP_PIPE", {"rawLink": True}), # use link for better caching inside node
                 "seed": (
                     "INT",
                     {
@@ -417,11 +329,11 @@ class SP_SDKSampler:
             "optional": {
                 "model": (
                     "MODEL",
-                    {"tooltip": "The diffusion model the LoRA will be applied to."},
+                    {"tooltip": "The diffusion model the LoRA will be applied to.", "rawLink": True},
                 ),
-                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
-                "image": ("IMAGE", {"tooltip": "The image to denoise."}),
-            },
+                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise.", "rawLink": True}),
+                "image": ("IMAGE", {"tooltip": "The image to denoise.", "rawLink": True}),
+            }
         }
 
     RETURN_TYPES = ("LATENT", "IMAGE")
@@ -437,56 +349,18 @@ class SP_SDKSampler:
         sp_pipe,
         seed,
         steps,
-        cfg,
         sampler_name,
         scheduler,
         denoise,
         tile_size,
         vae_decode,
         preview,
+        cfg=1.0,
         model=None,
         latent_image=None,
-        image=None,
+        image=None
     ):
-        graph = Graph()
-        positive = sp_pipe["positive"]
-        negative = sp_pipe["negative"]
-        vae = sp_pipe["vae"]
-        model = sp_pipe["model"] if model is None else model
-        tile_size = tile_size
-
-        latent = None
-        if image is not None:
-            latent = graph.VAEEncode(image, vae, tile_size)
-        elif latent_image:
-            latent = latent_image
-        else:
-            latent = sp_pipe["latent"]
-
-        latent = graph.KSampler(
-            model,
-            positive,
-            negative,
-            latent,
-            seed,
-            steps,
-            cfg,
-            sampler_name,
-            scheduler,
-            denoise,
-        )
-
-        image = None
-        if vae_decode or preview:
-            image = graph.VAEDecode(latent, vae, tile_size)
-
-            if preview:
-                graph.PreviewImage(image)
-
-        return {
-            "result": (latent, image),
-            "expand": graph.finalize(),
-        }
+        return ksampler_main(sp_pipe, seed, steps, cfg, sampler_name, scheduler, denoise, tile_size, vae_decode, preview, model, latent_image, image)
 
 
 class SP_FluxLoader:
@@ -596,7 +470,7 @@ class SP_FluxLoader:
         # SP_Pipe
         sp_pipe = graph.SP_Pipe(
             None, model, clip, vae, conditioning, conditioning, latent, None
-        )
+        )[0]
 
         return {
             "result": (sp_pipe, model, clip, vae, conditioning, latent),
@@ -611,132 +485,16 @@ class SP_FluxLoader:
         return sorted(files)
 
 
-class SP_FluxKSampler:
+class SP_FluxKSampler(SP_SDKSampler):
     @classmethod
     def INPUT_TYPES(s):
-        return {
-            "required": {
-                "sp_pipe": ("SP_PIPE",),
-                "seed": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
-                ),
-                "steps": (
-                    "INT",
-                    {
-                        "default": 20,
-                        "min": 1,
-                        "max": 10000,
-                        "tooltip": "The number of steps used in the denoising process.",
-                    },
-                ),
-                "sampler_name": (
-                    comfy.samplers.KSampler.SAMPLERS,
-                    {
-                        "tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."
-                    },
-                ),
-                "scheduler": (
-                    comfy.samplers.KSampler.SCHEDULERS,
-                    {
-                        "default": "beta",
-                        "tooltip": "The scheduler controls how noise is gradually removed to form the image.",
-                    },
-                ),
-                "denoise": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling.",
-                    },
-                ),
-                "tile_size": (
-                    "INT",
-                    {"default": 0, "min": 0, "max": 2048, "step": 64},
-                ),
-                "vae_decode": ("BOOLEAN", {"default": True}),
-                "preview": ("BOOLEAN", {"default": False}),
-            },
-            "optional": {
-                "model": (
-                    "MODEL",
-                    {"tooltip": "The diffusion model the LoRA will be applied to."},
-                ),
-                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
-                "image": ("IMAGE", {"tooltip": "The image to denoise."}),
-            },
-        }
-
-    RETURN_TYPES = ("LATENT", "IMAGE")
-    OUTPUT_TOOLTIPS = ("The denoised latent.", "The decoded image")
-    FUNCTION = "fn"
-    OUTPUT_NODE = True
-
-    CATEGORY = "SP-Nodes/Group Nodes"
-    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
-
-    def fn(
-        self,
-        sp_pipe,
-        seed,
-        steps,
-        sampler_name,
-        scheduler,
-        denoise,
-        tile_size,
-        vae_decode,
-        preview,
-        model=None,
-        latent_image=None,
-        image=None,
-    ):
-        graph = Graph()
-        positive = sp_pipe["positive"]
-        negative = sp_pipe["negative"]
-        vae = sp_pipe["vae"]
-        model = sp_pipe["model"] if model is None else model
-        tile_size = tile_size
-
-        latent = None
-        if image is not None:
-            latent = graph.VAEEncode(image, vae, tile_size)
-        elif latent_image:
-            latent = latent_image
-        else:
-            latent = sp_pipe["latent"]
-
-        latent = graph.KSampler(
-            model,
-            positive,
-            negative,
-            latent,
-            seed,
-            steps,
-            1.0,
-            sampler_name,
-            scheduler,
-            denoise,
-        )
-
-        image = None
-        if vae_decode or preview:
-            image = graph.VAEDecode(latent, vae, tile_size)
-
-            if preview:
-                graph.PreviewImage(image)
-
-        return {
-            "result": (latent, image),
-            "expand": graph.finalize(),
-        }
+        input_types = dict(super().INPUT_TYPES())
+        
+        # change flux defaults
+        input_types['required']['scheduler'][1]['default'] = 'beta'
+        del input_types['required']['cfg']
+        
+        return input_types
 
 
 NODE_CLASS_MAPPINGS = {
