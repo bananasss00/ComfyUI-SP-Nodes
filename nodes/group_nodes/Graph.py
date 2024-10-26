@@ -8,8 +8,18 @@ NF4_LORA_LOADER = ('ComfyUI_bitsandbytes_NF4-Lora', 'https://github.com/bananass
 GGUF = ('ComfyUI-GGUF', 'https://github.com/city96/ComfyUI-GGUF')
 SUPIR = ('ComfyUI-SUPIR', 'https://github.com/kijai/ComfyUI-SUPIR')
 ESSENTIALS = ('ComfyUI_essentials', 'https://github.com/cubiq/ComfyUI_essentials')
+FLORENCE2 = ('ComfyUI-Florence2', 'https://github.com/kijai/ComfyUI-Florence2')
 
 FOR_CHECK_NODES = []
+
+def get_requirements():
+    return {
+        'SP_Supir': ["ComfyUI-SUPIR", "ComfyUI_essentials"],
+        'SP_SDKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
+        'SP_FluxKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
+        'SP_FluxLoader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
+        'SP_FlorenceCaption': ["ComfyUI-Florence2"],
+    }
 
 def get_missing_nodes():
     missing_nodes = {}
@@ -21,6 +31,7 @@ def get_missing_nodes():
             missing_nodes[extension_name]['nodes'].append(node_name)
             # print(f'missing node: {node_name}')
     return missing_nodes
+
 
 def requires_extension(node_name, extension_name, install_url):
     
@@ -285,3 +296,20 @@ class Graph:
         '''
         node = self.graph.node('ImageColorMatch+', image=image, reference=reference, reference_mask=reference_mask, color_space=color_space, factor=factor, device=device, batch_size=batch_size)
         return node.out(0)
+    
+    @requires_extension('Florence2Run', *FLORENCE2)
+    def Florence2Run(self, image, florence2_model, text_input=r"", task=r"more_detailed_caption", fill_mask=True, keep_model_loaded=False, max_new_tokens=1024, num_beams=3, do_sample=True, output_mask_select=r"", seed=1):
+        '''
+        return image, mask, caption, data
+        '''
+        node = self.graph.node('Florence2Run', image=image, florence2_model=florence2_model, text_input=text_input, task=task, fill_mask=fill_mask, keep_model_loaded=keep_model_loaded, max_new_tokens=max_new_tokens, num_beams=num_beams, do_sample=do_sample, output_mask_select=output_mask_select, seed=seed)
+        return node.out(0), node.out(1), node.out(2), node.out(3)
+
+    @requires_extension('DownloadAndLoadFlorence2Model', *FLORENCE2)
+    def DownloadAndLoadFlorence2Model(self, lora, model=r"microsoft/Florence-2-base", precision=r"fp16", attention=r"sdpa"):
+        '''
+        return florence2_model
+        '''
+        node = self.graph.node('DownloadAndLoadFlorence2Model', lora=lora, model=model, precision=precision, attention=attention)
+        return node.out(0)
+

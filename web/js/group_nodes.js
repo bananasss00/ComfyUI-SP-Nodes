@@ -3,21 +3,15 @@ import { ComfyDialog, $el } from "../../../scripts/ui.js";
 import { api } from "../../../scripts/api.js";
 
 let missing_nodes = {};
+let requirements = {};
 async function load_missing_nodes() {
 	let res = await api.fetchApi('/sp_group_nodes/missing_nodes');
 	let data = await res.json();
 	missing_nodes = data.data;
+	requirements = data.requirements;
 }
 
 load_missing_nodes();
-
-
-const requirements = {
-    SP_Supir: ["ComfyUI-SUPIR", "ComfyUI_essentials"],
-    SP_SDKSampler: ["rgthree-comfy", "ComfyUI-Impact-Pack"],
-    SP_FluxKSampler: ["rgthree-comfy", "ComfyUI-Impact-Pack"],
-    SP_FluxLoader: ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
-  };
 
 function checkAndSuggestExtensions(nodeClass, missingNodes) {
     const requiredExtensions = requirements[nodeClass];
