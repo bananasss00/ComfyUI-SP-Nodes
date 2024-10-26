@@ -1,5 +1,34 @@
+import nodes
+from functools import wraps
 from comfy_execution.graph_utils import GraphBuilder
 
+RGTHREE = ('rgthree-comfy', 'https://github.com/rgthree/rgthree-comfy')
+IMPACT_PACK = ('ComfyUI-Impact-Pack', 'https://github.com/ltdrdata/ComfyUI-Impact-Pack')
+NF4_LORA_LOADER = ('ComfyUI_bitsandbytes_NF4-Lora', 'https://github.com/bananasss00/ComfyUI_bitsandbytes_NF4-Lora')
+GGUF = ('ComfyUI-GGUF', 'https://github.com/city96/ComfyUI-GGUF')
+SUPIR = ('ComfyUI-SUPIR', 'https://github.com/kijai/ComfyUI-SUPIR')
+ESSENTIALS = ('ComfyUI_essentials', 'https://github.com/cubiq/ComfyUI_essentials')
+
+FOR_CHECK_NODES = []
+
+def get_missing_nodes():
+    missing_nodes = {}
+    for node_name, extension_name, install_url in FOR_CHECK_NODES:
+        if node_name not in nodes.NODE_CLASS_MAPPINGS:
+            if extension_name not in missing_nodes:
+                missing_nodes[extension_name] = {'install_url': install_url, 'nodes': []}
+
+            missing_nodes[extension_name]['nodes'].append(node_name)
+            # print(f'missing node: {node_name}')
+    return missing_nodes
+
+def requires_extension(node_name, extension_name, install_url):
+    
+    def decorator(func):
+        FOR_CHECK_NODES.append((node_name, extension_name, install_url))
+        return func
+    
+    return decorator
 
 class Graph:
     def __init__(self):
@@ -11,21 +40,21 @@ class Graph:
     def lookup_node(self, id):
         return self.graph.lookup_node(id)
 
+    @requires_extension('Any Switch (rgthree)', *RGTHREE)
     def AnySwitch(self, any_01=None, any_02=None, any_03=None, any_04=None, any_05=None):
-        # dep: rgthree
         node = self.graph.node('Any Switch (rgthree)', any_01=any_01, any_02=any_02, any_03=any_03, any_04=any_04, any_05=any_05)
         return node.out(0)
 
+    @requires_extension('ImpactIfNone', *IMPACT_PACK)
     def ImpactIfNone(self, signal=None, any_input=None):
-        # dep: impactpack
         '''
         return signal, bool (if any_input not None=True)
         '''
         node = self.graph.node('ImpactIfNone', signal=signal, any_input=any_input)
         return node.out(0), node.out(1)
 
+    @requires_extension('ImpactConditionalBranch', *IMPACT_PACK)
     def ImpactConditionalBranch(self, tt_value, ff_value, cond):
-        # dep: impactpack
         '''
         return selected_value
         '''
@@ -157,18 +186,19 @@ class Graph:
             "UNETLoader", unet_name=unet_name, weight_dtype=weight_dtype
         ).out(0)
 
+    @requires_extension("SP_UnetLoaderBNB", *NF4_LORA_LOADER)
     def SP_UnetLoaderBNB(self, unet_name, load_dtype):
-        # dep: nf4 loader lora
         return self.graph.node(
             "SP_UnetLoaderBNB",
             unet_name=unet_name,
             load_dtype=load_dtype,
         ).out(0)
 
+    @requires_extension("UnetLoaderGGUF", *GGUF)
     def UnetLoaderGGUF(self, unet_name):
-        # dep: gguf
         return self.graph.node("UnetLoaderGGUF", unet_name=unet_name).out(0)
 
+    @requires_extension("DualCLIPLoaderGGUF", *GGUF)
     def DualCLIPLoaderGGUF(self, clip_name1, clip_name2, type):
         return self.graph.node(
             "DualCLIPLoaderGGUF",
@@ -191,3 +221,67 @@ class Graph:
             width=width,
             height=height,
         ).out(0)
+    
+    @requires_extension('SP_SupirSampler', *SUPIR)
+    def SP_SupirSampler(self, supir_sampler):
+        '''
+        return dpmpp_eta, edm_s_churn, restore_cfg, sampler
+        '''
+        node = self.graph.node('SP_SupirSampler', supir_sampler=supir_sampler)
+        return node.out(0), node.out(1), node.out(2), node.out(3)
+    
+    @requires_extension('SUPIR_model_loader_v2', *SUPIR)
+    def SUPIR_model_loader_v2(self, model, clip, vae, supir_model, fp8_unet, diffusion_dtype, high_vram):
+        '''
+        return supir_model, supir_vae
+        '''
+        node = self.graph.node('SUPIR_model_loader_v2', model=model, clip=clip, vae=vae, supir_model=supir_model, fp8_unet=fp8_unet, diffusion_dtype=diffusion_dtype, high_vram=high_vram)
+        return node.out(0), node.out(1)
+    
+    @requires_extension('SUPIR_first_stage', *SUPIR)
+    def SUPIR_first_stage(self, SUPIR_VAE, image, use_tiled_vae, encoder_tile_size, decoder_tile_size, encoder_dtype):
+        '''
+        return denoised_image, denoised_latents
+        '''
+        node = self.graph.node('SUPIR_first_stage', SUPIR_VAE=SUPIR_VAE, image=image, use_tiled_vae=use_tiled_vae, encoder_tile_size=encoder_tile_size, decoder_tile_size=decoder_tile_size, encoder_dtype=encoder_dtype)
+        return node.out(1), node.out(2)
+    
+    @requires_extension('SUPIR_conditioner', *SUPIR)
+    def SUPIR_conditioner(self, SUPIR_model, latents, positive_prompt, negative_prompt):
+        '''
+        return positive, negative
+        '''
+        node = self.graph.node('SUPIR_conditioner', SUPIR_model=SUPIR_model, latents=latents, captions='', positive_prompt=positive_prompt, negative_prompt=negative_prompt)
+        return node.out(0), node.out(1)
+    
+    @requires_extension('SUPIR_encode', *SUPIR)
+    def SUPIR_encode(self, SUPIR_VAE, image, use_tiled_vae, encoder_tile_size, encoder_dtype):
+        '''
+        return latent
+        '''
+        node = self.graph.node('SUPIR_encode', SUPIR_VAE=SUPIR_VAE, image=image, use_tiled_vae=use_tiled_vae, encoder_tile_size=encoder_tile_size, encoder_dtype=encoder_dtype)
+        return node.out(0)
+    
+    @requires_extension('SUPIR_sample', *SUPIR)
+    def SUPIR_sample(self, SUPIR_model, latents, positive, negative, seed, steps, cfg_scale_start, cfg_scale_end, EDM_s_churn, s_noise, DPMPP_eta, control_scale_start, control_scale_end, restore_cfg, keep_model_loaded, sampler, sampler_tile_size, sampler_tile_stride):
+        '''
+        return latent
+        '''
+        node = self.graph.node('SUPIR_sample', SUPIR_model=SUPIR_model, latents=latents, positive=positive, negative=negative, seed=seed, steps=steps, cfg_scale_start=cfg_scale_start, cfg_scale_end=cfg_scale_end, EDM_s_churn=EDM_s_churn, s_noise=s_noise, DPMPP_eta=DPMPP_eta, control_scale_start=control_scale_start, control_scale_end=control_scale_end, restore_cfg=restore_cfg, keep_model_loaded=keep_model_loaded, sampler=sampler, sampler_tile_size=sampler_tile_size, sampler_tile_stride=sampler_tile_stride)
+        return node.out(0)
+    
+    @requires_extension('SUPIR_decode', *SUPIR)
+    def SUPIR_decode(self, SUPIR_VAE, latents, use_tiled_vae, decoder_tile_size):
+        '''
+        return image
+        '''
+        node = self.graph.node('SUPIR_decode', SUPIR_VAE=SUPIR_VAE, latents=latents, use_tiled_vae=use_tiled_vae, decoder_tile_size=decoder_tile_size)
+        return node.out(0)
+    
+    @requires_extension('ImageColorMatch+', *ESSENTIALS)
+    def ImageColorMatchP(self, image, reference, reference_mask=None, color_space="LAB", factor=1, device="auto", batch_size=0):
+        '''
+        return image
+        '''
+        node = self.graph.node('ImageColorMatch+', image=image, reference=reference, reference_mask=reference_mask, color_space=color_space, factor=factor, device=device, batch_size=batch_size)
+        return node.out(0)
