@@ -50,4 +50,8 @@
     "SP_SDKSampler": "SP_SDKSampler",
     "SP_FluxLoader": "SP_FluxLoader",
     "SP_FluxKSampler": "SP_FluxKSampler"
+    "SP_SupirSampler": "SP_SupirSampler"
+    "SP_SupirSampler_DPMPP2M": "SP_SupirSampler_DPMPP2M"
+    "SP_SupirSampler_EDM": "SP_SupirSampler_EDM"
+    "SP_Supir": "SP_Supir"
 }
