@@ -60,29 +60,35 @@ CONTEXT = {
     "image": "IMAGE",
 }
 
-def ksampler_main(sp_pipe,
-        seed,
-        steps,
-        cfg,
-        sampler_name,
-        scheduler,
-        denoise,
-        tile_size,
-        vae_decode,
-        preview,
-        model=None,
-        latent_image=None,
-        image=None):
+
+def ksampler_main(
+    sp_pipe,
+    seed,
+    steps,
+    cfg,
+    guidance,
+    sampler_name,
+    scheduler,
+    denoise,
+    tile_size,
+    vae_decode,
+    preview,
+    model=None,
+    latent_image=None,
+    image=None,
+):
     graph = Graph()
 
     # get values from linked pipe. all values also LINKS!
-    sp_pipe, pipe_model, clip, vae, positive, negative, latent, pipe_image = graph.SP_Pipe(sp_pipe)
+    sp_pipe, pipe_model, clip, vae, positive, negative, latent, pipe_image = (
+        graph.SP_Pipe(sp_pipe)
+    )
 
     model = graph.AnySwitch(model, pipe_model)
 
     def get_prior_latent(image, pipe_image, latent_image, latent):
         # workflow: .assets\select_latent_or_encoded_latent_ref.png
-        
+
         # Selects the image that is not None, either from the first or second input.
         image = graph.AnySwitch(image, pipe_image)
 
@@ -101,14 +107,17 @@ def ksampler_main(sp_pipe,
         # Otherwise, use the pre-generated latent from the pipeline or a custom one provided to the node.
         latent = graph.ImpactConditionalBranch(
             tt_value=encoded_latent,  # Use this if 'image_not_none' is True.
-            ff_value=latent,          # Use this if 'image_not_none' is False.
-            cond=image_not_none       # Condition based on whether 'image' was valid.
+            ff_value=latent,  # Use this if 'image_not_none' is False.
+            cond=image_not_none,  # Condition based on whether 'image' was valid.
         )
-        
+
         return latent
-    
+
     latent = get_prior_latent(image, pipe_image, latent_image, latent)
-    
+
+    if guidance:
+        positive = graph.FluxGuidance(positive, guidance)
+
     latent = graph.KSampler(
         model,
         positive,
@@ -133,6 +142,7 @@ def ksampler_main(sp_pipe,
         "result": (latent, image),
         "expand": graph.finalize(),
     }
+
 
 class SP_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -210,7 +220,15 @@ class SP_SDLoader:
         }
         return inputs
 
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_TYPES = (
+        "SP_PIPE",
+        "MODEL",
+        "CLIP",
+        "VAE",
+        "CONDITIONING",
+        "CONDITIONING",
+        "LATENT",
+    )
     RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
     FUNCTION = "fn"
 
@@ -261,12 +279,16 @@ class SP_SDLoader:
             "expand": graph.finalize(),
         }
 
+
 class SP_SDKSampler:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "sp_pipe": ("SP_PIPE", {"rawLink": True}), # use link for better caching inside node
+                "sp_pipe": (
+                    "SP_PIPE",
+                    {"rawLink": True},
+                ),  # use link for better caching inside node
                 "seed": (
                     "INT",
                     {
@@ -329,11 +351,20 @@ class SP_SDKSampler:
             "optional": {
                 "model": (
                     "MODEL",
-                    {"tooltip": "The diffusion model the LoRA will be applied to.", "rawLink": True},
+                    {
+                        "tooltip": "The diffusion model the LoRA will be applied to.",
+                        "rawLink": True,
+                    },
                 ),
-                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise.", "rawLink": True}),
-                "image": ("IMAGE", {"tooltip": "The image to denoise.", "rawLink": True}),
-            }
+                "latent_image": (
+                    "LATENT",
+                    {"tooltip": "The latent image to denoise.", "rawLink": True},
+                ),
+                "image": (
+                    "IMAGE",
+                    {"tooltip": "The image to denoise.", "rawLink": True},
+                ),
+            },
         }
 
     RETURN_TYPES = ("LATENT", "IMAGE")
@@ -356,11 +387,27 @@ class SP_SDKSampler:
         vae_decode,
         preview,
         cfg=1.0,
+        guidance=0,
         model=None,
         latent_image=None,
-        image=None
+        image=None,
     ):
-        return ksampler_main(sp_pipe, seed, steps, cfg, sampler_name, scheduler, denoise, tile_size, vae_decode, preview, model, latent_image, image)
+        return ksampler_main(
+            sp_pipe,
+            seed,
+            steps,
+            cfg,
+            guidance,
+            sampler_name,
+            scheduler,
+            denoise,
+            tile_size,
+            vae_decode,
+            preview,
+            model,
+            latent_image,
+            image,
+        )
 
 
 class SP_FluxLoader:
@@ -396,10 +443,6 @@ class SP_FluxLoader:
                     {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.05},
                 ),
                 "positive": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-                "guidance": (
-                    "FLOAT",
-                    {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1},
-                ),
                 "resolution": (resolution_strings, {"default": "1024 x 1024"}),
                 "empty_latent_width": (
                     "INT",
@@ -413,7 +456,7 @@ class SP_FluxLoader:
             "optional": {},
         }
         return inputs
-    
+
     RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "latent")
     FUNCTION = "fn"
@@ -428,7 +471,6 @@ class SP_FluxLoader:
         lora_name,
         lora_strength,
         positive,
-        guidance,
         resolution,
         empty_latent_width,
         empty_latent_height,
@@ -461,7 +503,6 @@ class SP_FluxLoader:
             model, clip = graph.LoraLoader(model, clip, lora_name, lora_strength)
 
         conditioning = graph.CLIPTextEncode(clip, positive)
-        conditioning = graph.FluxGuidance(conditioning, guidance)
 
         # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
 
@@ -489,11 +530,17 @@ class SP_FluxKSampler(SP_SDKSampler):
     @classmethod
     def INPUT_TYPES(s):
         input_types = dict(super().INPUT_TYPES())
-        
+
         # change flux defaults
-        input_types['required']['scheduler'][1]['default'] = 'beta'
-        del input_types['required']['cfg']
+        input_types["required"]["scheduler"][1]["default"] = "beta"
         
+        del input_types["required"]["cfg"]
+
+        input_types["required"]["guidance"] = (
+            "FLOAT",
+            {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1},
+        )
+
         return input_types
 
 

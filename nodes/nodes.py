@@ -580,8 +580,6 @@ class ComfyuiRuntimeArgs:
         mm.DISABLE_SMART_MEMORY = disable_smart_memory
 
         return str('\n'.join(f'{a[0]}={a[1]}' for a in args._get_kwargs())), 
-
-
         
 NODE_CLASS_MAPPINGS = {
     "BoolSwitchOutStr": BoolSwitchOutStr,

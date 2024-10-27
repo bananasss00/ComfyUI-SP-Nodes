@@ -49,10 +49,13 @@
     "SP_SDLoader": "SP_SDLoader",
     "SP_SDKSampler": "SP_SDKSampler",
     "SP_FluxLoader": "SP_FluxLoader",
-    "SP_FluxKSampler": "SP_FluxKSampler"
-    "SP_SupirSampler": "SP_SupirSampler"
-    "SP_SupirSampler_DPMPP2M": "SP_SupirSampler_DPMPP2M"
-    "SP_SupirSampler_EDM": "SP_SupirSampler_EDM"
+    "SP_FluxKSampler": "SP_FluxKSampler",
+    "SP_SupirSampler": "SP_SupirSampler",
+    "SP_SupirSampler_DPMPP2M": "SP_SupirSampler_DPMPP2M",
+    "SP_SupirSampler_EDM": "SP_SupirSampler_EDM",
     "SP_Supir": "SP_Supir",
-    "SP_FlorenceCaption": "SP_FlorenceCaption"
+    "SP_FlorenceCaption": "SP_FlorenceCaption",
+    "SP_FluxUnsampler": "SP_FluxUnsampler",
+    "SP_FluxUnsampler_ForwardODESampler": "SP_FluxUnsampler_ForwardODESampler",
+    "SP_FluxUnsampler_InverseSampler": "SP_FluxUnsampler_InverseSampler"
 }
