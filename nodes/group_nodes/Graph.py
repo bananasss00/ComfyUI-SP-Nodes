@@ -53,6 +53,28 @@ class Graph:
     def lookup_node(self, id):
         return self.graph.lookup_node(id)
 
+    def ConditioningZeroOut(self, conditioning):
+        '''
+        return conditioning
+        '''
+        node = self.graph.node('ConditioningZeroOut', conditioning=conditioning)
+        return node.out(0)
+
+    def ConditioningSetTimestepRange(self, conditioning, start, end):
+        '''
+        return conditioning
+        '''
+        node = self.graph.node('ConditioningSetTimestepRange', conditioning=conditioning, start=start, end=end)
+        return node.out(0)
+
+    def ConditioningCombine(self, conditioning_1, conditioning_2):
+        '''
+        return conditioning
+        '''
+        node = self.graph.node('ConditioningCombine', conditioning_1=conditioning_1, conditioning_2=conditioning_2)
+        return node.out(0)
+
+
     @requires_extension('Any Switch (rgthree)', *RGTHREE)
     def AnySwitch(self, any_01=None, any_02=None, any_03=None, any_04=None, any_05=None):
         node = self.graph.node('Any Switch (rgthree)', any_01=any_01, any_02=any_02, any_03=any_03, any_04=any_04, any_05=any_05)
@@ -237,6 +259,14 @@ class Graph:
         return self.graph.node("UnetLoaderGGUF", unet_name=unet_name).out(0)
 
     @requires_extension("DualCLIPLoaderGGUF", *GGUF)
+    def CLIPLoaderGGUF(self, clip_name, type=r"sd3"):
+        '''
+        return clip
+        '''
+        node = self.graph.node('CLIPLoaderGGUF', clip_name=clip_name, type=type)
+        return node.out(0)
+
+    @requires_extension("DualCLIPLoaderGGUF", *GGUF)
     def DualCLIPLoaderGGUF(self, clip_name1, clip_name2, type):
         return self.graph.node(
             "DualCLIPLoaderGGUF",
@@ -244,6 +274,15 @@ class Graph:
             clip_name2=clip_name2,
             type=type,
         ).out(0)
+
+    @requires_extension("TripleCLIPLoaderGGUF", *GGUF)
+    def TripleCLIPLoaderGGUF(self, clip_name1, clip_name2, clip_name3):
+        '''
+        return clip
+        '''
+        node = self.graph.node('TripleCLIPLoaderGGUF', clip_name1=clip_name1, clip_name2=clip_name2, clip_name3=clip_name3)
+        return node.out(0)
+
 
     def FluxGuidance(self, conditioning, guidance):
         return self.graph.node(
@@ -331,6 +370,14 @@ class Graph:
         '''
         node = self.graph.node('GetImageSize+', image=image)
         return node.out(0), node.out(1), node.out(2)
+
+    @requires_extension('InjectLatentNoise+', *ESSENTIALS)
+    def InjectLatentNoise(self, latent, mask=None, noise_seed=0, noise_strength=1, normalize=r"false"):
+        '''
+        return latent
+        '''
+        node = self.graph.node('InjectLatentNoise+', latent=latent, mask=mask, noise_seed=noise_seed, noise_strength=noise_strength, normalize=normalize)
+        return node.out(0)
 
     
     @requires_extension('Florence2Run', *FLORENCE2)

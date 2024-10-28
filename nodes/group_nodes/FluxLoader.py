@@ -60,7 +60,79 @@ CONTEXT = {
     "image": "IMAGE",
 }
 
+def load_unet_and_dual_clip(
+        unet_name,
+        weight_dtype,
+        vae_name,
+        clip_name1,
+        clip_name2,
+        lora_name,
+        lora_strength,
+        positive,
+        resolution,
+        empty_latent_width,
+        empty_latent_height,
+        clip_type='flux',
+        clip_name3=None,
+        negative=None
+    ):
+        graph = Graph()
 
+        # set resolution
+        if resolution not in ["width x height (custom)"]:
+            try:
+                width, height = map(int, resolution.split(" x "))
+                empty_latent_width = width
+                empty_latent_height = height
+            except ValueError:
+                raise ValueError("Invalid base_resolution format.")
+
+        # load unet
+        model = None
+        if weight_dtype.startswith("fp8"):
+            model = graph.UNETLoader(unet_name, weight_dtype)
+        elif weight_dtype.startswith("nf4"):
+            model = graph.SP_UnetLoaderBNB(unet_name, weight_dtype.split("-")[1])
+        elif weight_dtype == "gguf":
+            model = graph.UnetLoaderGGUF(unet_name)
+
+        clip = None
+        if clip_name2 == "None":
+            clip = graph.CLIPLoaderGGUF(clip_name1)
+        elif clip_name3 == "None":
+            clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
+        else:
+            clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
+
+        vae = graph.VAELoader(vae_name)
+
+        if lora_name != "None":
+            model, clip = graph.LoraLoader(model, clip, lora_name, lora_strength)
+
+        pos = neg = graph.CLIPTextEncode(clip, positive)
+        if negative is not None and clip_type == 'sd3':
+            neg = graph.CLIPTextEncode(clip, negative)
+            zero_out = graph.ConditioningZeroOut(neg)
+            cond1 = graph.ConditioningSetTimestepRange(neg, start=0.0, end=0.1)
+            cond2 = graph.ConditioningSetTimestepRange(zero_out, start=0.1, end=1.0)
+            neg = graph.ConditioningCombine(cond1, cond2)
+        elif negative is not None:
+            neg = graph.CLIPTextEncode(clip, negative)
+
+        # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
+
+        latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
+
+        # SP_Pipe
+        sp_pipe = graph.SP_Pipe(
+            None, model, clip, vae, pos, neg, latent, None
+        )[0]
+
+        return {
+            "result": (sp_pipe, model, clip, vae, pos, neg, latent),
+            "expand": graph.finalize(),
+        }
+ 
 def ksampler_main(
     sp_pipe,
     seed,
@@ -70,6 +142,7 @@ def ksampler_main(
     sampler_name,
     scheduler,
     denoise,
+    inject_noise,
     tile_size,
     vae_decode,
     preview,
@@ -114,6 +187,9 @@ def ksampler_main(
         return latent
 
     latent = get_prior_latent(image, pipe_image, latent_image, latent)
+
+    if inject_noise > 0.01:
+        latent = graph.InjectLatentNoise(latent, noise_seed=seed, noise_strength=inject_noise)
 
     if guidance:
         positive = graph.FluxGuidance(positive, guidance)
@@ -313,7 +389,7 @@ class SP_SDKSampler:
                         "default": 8.0,
                         "min": 0.0,
                         "max": 100.0,
-                        "step": 0.1,
+                        "step": 0.5,
                         "round": 0.01,
                         "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality.",
                     },
@@ -339,6 +415,15 @@ class SP_SDKSampler:
                         "max": 1.0,
                         "step": 0.01,
                         "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling.",
+                    },
+                ),
+                "inject_noise": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 20.0,
+                        "step": 0.05,
                     },
                 ),
                 "tile_size": (
@@ -383,6 +468,7 @@ class SP_SDKSampler:
         sampler_name,
         scheduler,
         denoise,
+        inject_noise,
         tile_size,
         vae_decode,
         preview,
@@ -401,6 +487,7 @@ class SP_SDKSampler:
             sampler_name,
             scheduler,
             denoise,
+            inject_noise,
             tile_size,
             vae_decode,
             preview,
@@ -442,7 +529,7 @@ class SP_FluxLoader:
                     "FLOAT",
                     {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.05},
                 ),
-                "positive": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+                "positive": ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "positive"}),
                 "resolution": (resolution_strings, {"default": "1024 x 1024"}),
                 "empty_latent_width": (
                     "INT",
@@ -457,8 +544,8 @@ class SP_FluxLoader:
         }
         return inputs
 
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "latent")
+    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
     FUNCTION = "fn"
 
     def fn(
@@ -474,49 +561,19 @@ class SP_FluxLoader:
         resolution,
         empty_latent_width,
         empty_latent_height,
+        clip_type = 'flux', clip_name3 = "None", negative = None
     ):
-        graph = Graph()
-
-        # set resolution
-        if resolution not in ["width x height (custom)"]:
-            try:
-                width, height = map(int, resolution.split(" x "))
-                empty_latent_width = width
-                empty_latent_height = height
-            except ValueError:
-                raise ValueError("Invalid base_resolution format.")
-
-        # load unet
-        model = None
-        if weight_dtype.startswith("fp8"):
-            model = graph.UNETLoader(unet_name, weight_dtype)
-        elif weight_dtype.startswith("nf4"):
-            model = graph.SP_UnetLoaderBNB(unet_name, weight_dtype.split("-")[1])
-        elif weight_dtype == "gguf":
-            model = graph.UnetLoaderGGUF(unet_name)
-
-        clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, "flux")
-
-        vae = graph.VAELoader(vae_name)
-
-        if lora_name != "None":
-            model, clip = graph.LoraLoader(model, clip, lora_name, lora_strength)
-
-        conditioning = graph.CLIPTextEncode(clip, positive)
-
-        # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
-
-        latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
-
-        # SP_Pipe
-        sp_pipe = graph.SP_Pipe(
-            None, model, clip, vae, conditioning, conditioning, latent, None
-        )[0]
-
-        return {
-            "result": (sp_pipe, model, clip, vae, conditioning, latent),
-            "expand": graph.finalize(),
-        }
+        return load_unet_and_dual_clip(unet_name,
+            weight_dtype,
+            vae_name,
+            clip_name1,
+            clip_name2,
+            lora_name,
+            lora_strength,
+            positive,
+            resolution,
+            empty_latent_width,
+            empty_latent_height, clip_type, clip_name3, negative)
 
     @classmethod
     def get_clip_list(s):
@@ -524,8 +581,7 @@ class SP_FluxLoader:
         files += folder_paths.get_filename_list("clip")
         files += folder_paths.get_filename_list("clip_gguf")
         return sorted(files)
-
-
+    
 class SP_FluxKSampler(SP_SDKSampler):
     @classmethod
     def INPUT_TYPES(s):
@@ -534,15 +590,67 @@ class SP_FluxKSampler(SP_SDKSampler):
         # change flux defaults
         input_types["required"]["scheduler"][1]["default"] = "beta"
         
-        del input_types["required"]["cfg"]
-
-        input_types["required"]["guidance"] = (
-            "FLOAT",
-            {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1},
-        )
-
+        required = input_types["required"]
+        
+        new_required = {}
+        for key, value in required.items():
+            if key == "cfg":
+                new_required["guidance"] = (
+                    "FLOAT",
+                    {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1},
+                )
+            else:
+                new_required[key] = value
+        
+        input_types["required"] = new_required
+        
         return input_types
 
+class SP_SD3Loader(SP_FluxLoader):
+    @classmethod
+    def INPUT_TYPES(self):
+        input_types = dict(super().INPUT_TYPES())
+
+        required = input_types["required"]
+        
+        new_required = {}
+        for key, value in required.items():
+            new_required[key] = value
+            if key == "clip_name2":
+                new_required["clip_name2"] = new_required["clip_name3"] = (["None"] + self.get_clip_list(),)
+            if key == "positive":
+                new_required["negative"] = ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "negative"})                
+        
+        input_types["required"] = new_required
+        
+        return input_types
+
+    def fn(
+        self,
+        unet_name,
+        weight_dtype,
+        vae_name,
+        clip_name1,
+        clip_name2,
+        lora_name,
+        lora_strength,
+        positive,
+        resolution,
+        empty_latent_width,
+        empty_latent_height,
+        clip_type = 'sd3', clip_name3 = "None", negative = None
+    ):
+        return super().fn(unet_name,
+            weight_dtype,
+            vae_name,
+            clip_name1,
+            clip_name2,
+            lora_name,
+            lora_strength,
+            positive,
+            resolution,
+            empty_latent_width,
+            empty_latent_height, clip_type, clip_name3, negative)
 
 NODE_CLASS_MAPPINGS = {
     "SP_Pipe": SP_Pipe,
@@ -550,4 +658,5 @@ NODE_CLASS_MAPPINGS = {
     "SP_SDKSampler": SP_SDKSampler,
     "SP_FluxLoader": SP_FluxLoader,
     "SP_FluxKSampler": SP_FluxKSampler,
+    "SP_SD3Loader": SP_SD3Loader,
 }
