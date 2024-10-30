@@ -10,6 +10,7 @@ SUPIR = ('ComfyUI-SUPIR', 'https://github.com/kijai/ComfyUI-SUPIR')
 ESSENTIALS = ('ComfyUI_essentials', 'https://github.com/cubiq/ComfyUI_essentials')
 FLORENCE2 = ('ComfyUI-Florence2', 'https://github.com/kijai/ComfyUI-Florence2')
 FLUXTAPOZ = ('ComfyUI-Fluxtapoz', 'https://github.com/logtd/ComfyUI-Fluxtapoz')
+KJNODES = ('ComfyUI-KJNodes', 'https://github.com/kijai/ComfyUI-KJNodes')
 
 FOR_CHECK_NODES = []
 
@@ -19,6 +20,7 @@ def get_requirements():
         'SP_SDKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
         'SP_FluxKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
         'SP_FluxLoader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
+        'SP_SD3Loader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
         'SP_FlorenceCaption': ["ComfyUI-Florence2"],
         'SP_FluxUnsampler': ["ComfyUI-Fluxtapoz", "ComfyUI_essentials"],
     }
@@ -53,6 +55,28 @@ class Graph:
     def lookup_node(self, id):
         return self.graph.lookup_node(id)
 
+    def SP_DictValue(self, dictionary, key=r""):
+        '''
+        return 
+        '''
+        node = self.graph.node('SP_DictValue', dictionary=dictionary, key=key)
+        return node.out(0)
+
+    def DifferentialDiffusion(self, model):
+        '''
+        return model
+        '''
+        node = self.graph.node('DifferentialDiffusion', model=model)
+        return node.out(0)
+
+    def InpaintModelConditioning(self, positive, negative, vae, pixels, mask):
+        '''
+        return positive, negative, latent
+        '''
+        node = self.graph.node('InpaintModelConditioning', positive=positive, negative=negative, vae=vae, pixels=pixels, mask=mask)
+        return node.out(0), node.out(1), node.out(2)
+
+
     def ConditioningZeroOut(self, conditioning):
         '''
         return conditioning
@@ -74,11 +98,27 @@ class Graph:
         node = self.graph.node('ConditioningCombine', conditioning_1=conditioning_1, conditioning_2=conditioning_2)
         return node.out(0)
 
+    @requires_extension('StringConstant', *KJNODES)
+    def StringConstant(self, string=r""):
+        '''
+        return string
+        '''
+        node = self.graph.node('StringConstant', string=string)
+        return node.out(0)
 
     @requires_extension('Any Switch (rgthree)', *RGTHREE)
     def AnySwitch(self, any_01=None, any_02=None, any_03=None, any_04=None, any_05=None):
         node = self.graph.node('Any Switch (rgthree)', any_01=any_01, any_02=any_02, any_03=any_03, any_04=any_04, any_05=any_05)
         return node.out(0)
+
+    @requires_extension('ToBasicPipe', *IMPACT_PACK)
+    def ToBasicPipe(self, model, clip, vae, positive, negative):
+        '''
+        return basic_pipe
+        '''
+        node = self.graph.node('ToBasicPipe', model=model, clip=clip, vae=vae, positive=positive, negative=negative)
+        return node.out(0)
+
 
     @requires_extension('ImpactIfNone', *IMPACT_PACK)
     def ImpactIfNone(self, signal=None, any_input=None):
@@ -175,6 +215,7 @@ class Graph:
         negative=None,
         latent=None,
         image=None,
+        **kwargs
     ):
         '''
         return sp_pipe, model, clip, vae, positive, negative, latent, image
@@ -189,6 +230,7 @@ class Graph:
             negative=negative,
             latent=latent,
             image=image,
+            **kwargs
         )
         return tuple(node.out(i) for i in range(8))
 

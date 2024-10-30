@@ -3,6 +3,9 @@ from comfy_execution.graph import DynamicPrompt
 
 from .Graph import Graph
 
+class AnyType(str):
+    def __ne__(self, __value: object) -> bool:
+        return False
 
 MAX_RESOLUTION = 16384
 
@@ -74,71 +77,79 @@ def load_unet_and_dual_clip(
         empty_latent_height,
         clip_type='flux',
         clip_name3=None,
-        negative=None
+        negative=None,
+        de_distilled=False
     ):
-        graph = Graph()
+    graph = Graph()
 
-        # set resolution
-        if resolution not in ["width x height (custom)"]:
-            try:
-                width, height = map(int, resolution.split(" x "))
-                empty_latent_width = width
-                empty_latent_height = height
-            except ValueError:
-                raise ValueError("Invalid base_resolution format.")
+    # set resolution
+    if resolution not in ["width x height (custom)"]:
+        try:
+            width, height = map(int, resolution.split(" x "))
+            empty_latent_width = width
+            empty_latent_height = height
+        except ValueError:
+            raise ValueError("Invalid base_resolution format.")
 
-        # load unet
-        model = None
-        if weight_dtype.startswith("fp8"):
-            model = graph.UNETLoader(unet_name, weight_dtype)
-        elif weight_dtype.startswith("nf4"):
-            model = graph.SP_UnetLoaderBNB(unet_name, weight_dtype.split("-")[1])
-        elif weight_dtype == "gguf":
-            model = graph.UnetLoaderGGUF(unet_name)
+    # load unet
+    model = None
+    if weight_dtype.startswith("fp8") or weight_dtype == "default":
+        model = graph.UNETLoader(unet_name, weight_dtype)
+    elif weight_dtype.startswith("nf4"):
+        model = graph.SP_UnetLoaderBNB(unet_name, weight_dtype.split("-")[1])
+    elif weight_dtype == "gguf":
+        model = graph.UnetLoaderGGUF(unet_name)
 
-        clip = None
-        if clip_name2 == "None":
-            clip = graph.CLIPLoaderGGUF(clip_name1)
-        elif clip_name3 == "None":
-            clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
-        else:
-            clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
+    clip = None
+    if clip_name2 == "None":
+        clip = graph.CLIPLoaderGGUF(clip_name1)
+    elif clip_name3 == "None":
+        clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
+    else:
+        clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
 
-        vae = graph.VAELoader(vae_name)
+    vae = graph.VAELoader(vae_name)
 
-        if lora_name != "None":
-            model, clip = graph.LoraLoader(model, clip, lora_name, lora_strength)
+    if lora_name != "None":
+        model, clip = graph.LoraLoader(model, clip, lora_name, lora_strength)
 
-        pos = neg = graph.CLIPTextEncode(clip, positive)
-        if negative is not None and clip_type == 'sd3':
-            neg = graph.CLIPTextEncode(clip, negative)
-            zero_out = graph.ConditioningZeroOut(neg)
-            cond1 = graph.ConditioningSetTimestepRange(neg, start=0.0, end=0.1)
-            cond2 = graph.ConditioningSetTimestepRange(zero_out, start=0.1, end=1.0)
-            neg = graph.ConditioningCombine(cond1, cond2)
-        elif negative is not None:
-            neg = graph.CLIPTextEncode(clip, negative)
+    pos = neg = graph.CLIPTextEncode(clip, positive)
+    if negative is not None and clip_type == "sd3":
+        neg = graph.CLIPTextEncode(clip, negative)
+        zero_out = graph.ConditioningZeroOut(neg)
+        cond1 = graph.ConditioningSetTimestepRange(neg, start=0.0, end=0.1)
+        cond2 = graph.ConditioningSetTimestepRange(zero_out, start=0.1, end=1.0)
+        neg = graph.ConditioningCombine(cond1, cond2)
+    elif negative is not None:
+        neg = graph.CLIPTextEncode(clip, negative)
 
-        # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
+    # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
 
-        latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
+    latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
 
-        # SP_Pipe
-        sp_pipe = graph.SP_Pipe(
-            None, model, clip, vae, pos, neg, latent, None
-        )[0]
+    # SP_Pipe
+    sp_pipe = graph.SP_Pipe(
+        None,
+        model,
+        clip,
+        vae,
+        pos,
+        neg,
+        latent,
+        None,
+        _model_type=("flux" if clip_type == "flux" and not de_distilled else None),
+    )[0]
 
-        return {
-            "result": (sp_pipe, model, clip, vae, pos, neg, latent),
-            "expand": graph.finalize(),
-        }
- 
+    return {
+        "result": (sp_pipe, model, clip, vae, pos, neg, latent),
+        "expand": graph.finalize(),
+    }
+
 def ksampler_main(
     sp_pipe,
     seed,
     steps,
     cfg,
-    guidance,
     sampler_name,
     scheduler,
     denoise,
@@ -191,8 +202,14 @@ def ksampler_main(
     if inject_noise > 0.01:
         latent = graph.InjectLatentNoise(latent, noise_seed=seed, noise_strength=inject_noise)
 
-    if guidance:
-        positive = graph.FluxGuidance(positive, guidance)
+    def flux_patches(positive, cfg):
+        model_type = graph.SP_DictValue(sp_pipe, '_model_type')
+        is_flux = graph.ImpactCompare('flux', model_type)
+        positive = graph.ImpactConditionalBranch(tt_value=graph.FluxGuidance(positive, cfg), ff_value=positive, cond=is_flux)
+        cfg = graph.ImpactConditionalBranch(tt_value=1.0, ff_value=cfg, cond=is_flux)
+        return positive, cfg
+    
+    positive, cfg = flux_patches(positive, cfg)
 
     latent = graph.KSampler(
         model,
@@ -213,12 +230,40 @@ def ksampler_main(
 
         if preview:
             graph.PreviewImage(image)
-
+    
+    sp_pipe = graph.SP_Pipe(
+        sp_pipe,
+        model,
+        clip,
+        vae,
+        positive,
+        negative,
+        latent,
+        None
+    )[0]
+    
     return {
-        "result": (latent, image),
+        "result": (sp_pipe, latent, image),
         "expand": graph.finalize(),
     }
 
+class SP_DictValue:
+    CATEGORY = "SP-Nodes/Group Nodes"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "dictionary": (AnyType("*"),),
+                "key": ("STRING", {"default": '', "multiline": False}),
+            },
+        }
+
+    RETURN_TYPES = AnyType('*'),
+    FUNCTION = "fn"
+
+    def fn(self, dictionary: dict, key):
+        return dictionary.get(key, None),
 
 class SP_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -228,6 +273,7 @@ class SP_Pipe:
         return {
             "required": {},
             "optional": {k: tuple([v]) for k, v in CONTEXT.items()},
+            "hidden": {'_model_type': "STRING"}
         }
 
     RETURN_TYPES = tuple(CONTEXT.values())
@@ -241,11 +287,43 @@ class SP_Pipe:
             sp_pipe = dict(sp_pipe)
 
         for k, v in kwargs.items():
-            if v == None or k == "sp_pipe":
+            if v is None or k == "sp_pipe":
                 continue
             sp_pipe[k] = v
 
-        return tuple([sp_pipe, *sp_pipe.values()])
+        result = tuple([sp_pipe] + [v for k, v in sp_pipe.items() if not k.startswith("_")])
+
+        return result
+
+class SP_DDInpaint_Pipe:
+    CATEGORY = "SP-Nodes/Group Nodes"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "sp_pipe": ("SP_PIPE",),
+                "pixels": ("IMAGE",),
+                "mask": ("MASK",),
+            }
+        }
+
+    RETURN_TYPES = "SP_PIPE",
+    RETURN_NAMES = "sp_pipe",
+    FUNCTION = "fn"
+
+    def fn(self, sp_pipe, pixels, mask):
+        graph = Graph()
+
+        model = graph.DifferentialDiffusion(sp_pipe['model'])
+        positive, negative, latent = graph.InpaintModelConditioning(sp_pipe['positive'], sp_pipe['negative'], sp_pipe['vae'], pixels, mask)
+
+        sp_pipe = graph.SP_Pipe(sp_pipe=sp_pipe, model=model, positive=positive, negative=negative, latent=latent)[0]
+
+        return {
+            "result": (sp_pipe, ),
+            "expand": graph.finalize(),
+        }
 
 
 class SP_SDLoader:
@@ -356,7 +434,7 @@ class SP_SDLoader:
         }
 
 
-class SP_SDKSampler:
+class SP_KSampler:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -403,7 +481,7 @@ class SP_SDKSampler:
                 "scheduler": (
                     comfy.samplers.KSampler.SCHEDULERS,
                     {
-                        "default": "sgm_uniform",
+                        "default": "beta",
                         "tooltip": "The scheduler controls how noise is gradually removed to form the image.",
                     },
                 ),
@@ -413,7 +491,7 @@ class SP_SDKSampler:
                         "default": 1.0,
                         "min": 0.0,
                         "max": 1.0,
-                        "step": 0.01,
+                        "step": 0.05,
                         "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling.",
                     },
                 ),
@@ -431,7 +509,7 @@ class SP_SDKSampler:
                     {"default": 0, "min": 0, "max": 2048, "step": 64},
                 ),
                 "vae_decode": ("BOOLEAN", {"default": True}),
-                "preview": ("BOOLEAN", {"default": False}),
+                "preview": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "model": (
@@ -452,7 +530,7 @@ class SP_SDKSampler:
             },
         }
 
-    RETURN_TYPES = ("LATENT", "IMAGE")
+    RETURN_TYPES = ("SP_PIPE", "LATENT", "IMAGE")
     OUTPUT_TOOLTIPS = ("The denoised latent.", "The decoded image")
     FUNCTION = "fn"
     OUTPUT_NODE = True
@@ -473,7 +551,6 @@ class SP_SDKSampler:
         vae_decode,
         preview,
         cfg=1.0,
-        guidance=0,
         model=None,
         latent_image=None,
         image=None,
@@ -483,7 +560,6 @@ class SP_SDKSampler:
             seed,
             steps,
             cfg,
-            guidance,
             sampler_name,
             scheduler,
             denoise,
@@ -511,6 +587,7 @@ class SP_FluxLoader:
                         + folder_paths.get_filename_list("unet_gguf")
                     ],
                 ),
+                "de_distilled": ("BOOLEAN", {"default": False}),
                 "weight_dtype": (
                     [
                         "fp8_e4m3fn",
@@ -551,6 +628,7 @@ class SP_FluxLoader:
     def fn(
         self,
         unet_name,
+        de_distilled,
         weight_dtype,
         vae_name,
         clip_name1,
@@ -573,7 +651,7 @@ class SP_FluxLoader:
             positive,
             resolution,
             empty_latent_width,
-            empty_latent_height, clip_type, clip_name3, negative)
+            empty_latent_height, clip_type, clip_name3, negative, de_distilled)
 
     @classmethod
     def get_clip_list(s):
@@ -581,30 +659,6 @@ class SP_FluxLoader:
         files += folder_paths.get_filename_list("clip")
         files += folder_paths.get_filename_list("clip_gguf")
         return sorted(files)
-    
-class SP_FluxKSampler(SP_SDKSampler):
-    @classmethod
-    def INPUT_TYPES(s):
-        input_types = dict(super().INPUT_TYPES())
-
-        # change flux defaults
-        input_types["required"]["scheduler"][1]["default"] = "beta"
-        
-        required = input_types["required"]
-        
-        new_required = {}
-        for key, value in required.items():
-            if key == "cfg":
-                new_required["guidance"] = (
-                    "FLOAT",
-                    {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1},
-                )
-            else:
-                new_required[key] = value
-        
-        input_types["required"] = new_required
-        
-        return input_types
 
 class SP_SD3Loader(SP_FluxLoader):
     @classmethod
@@ -616,13 +670,26 @@ class SP_SD3Loader(SP_FluxLoader):
         new_required = {}
         for key, value in required.items():
             new_required[key] = value
+
             if key == "clip_name2":
                 new_required["clip_name2"] = new_required["clip_name3"] = (["None"] + self.get_clip_list(),)
-            if key == "positive":
+            elif key == "positive":
                 new_required["negative"] = ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "negative"})                
         
+        del new_required['de_distilled']
+
+        new_required['weight_dtype'] = (
+                    [
+                        "fp8_e4m3fn",
+                        "fp8_e5m2",
+                        "nf4-float8_e4m3fn",
+                        "nf4-float8_e5m2",
+                        "gguf",
+                        "default"
+                    ],)
+
         input_types["required"] = new_required
-        
+
         return input_types
 
     def fn(
@@ -641,6 +708,7 @@ class SP_SD3Loader(SP_FluxLoader):
         clip_type = 'sd3', clip_name3 = "None", negative = None
     ):
         return super().fn(unet_name,
+            False,
             weight_dtype,
             vae_name,
             clip_name1,
@@ -655,8 +723,9 @@ class SP_SD3Loader(SP_FluxLoader):
 NODE_CLASS_MAPPINGS = {
     "SP_Pipe": SP_Pipe,
     "SP_SDLoader": SP_SDLoader,
-    "SP_SDKSampler": SP_SDKSampler,
+    "SP_KSampler": SP_KSampler,
     "SP_FluxLoader": SP_FluxLoader,
-    "SP_FluxKSampler": SP_FluxKSampler,
     "SP_SD3Loader": SP_SD3Loader,
+    "SP_DictValue": SP_DictValue,
+    "SP_DDInpaint_Pipe": SP_DDInpaint_Pipe,
 }

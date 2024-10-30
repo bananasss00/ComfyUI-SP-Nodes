@@ -12,6 +12,7 @@ import threading
 import locale
 import sys
 import importlib.util
+import logging
 from .config import write_config
 
 write_config()
@@ -36,7 +37,7 @@ def import_and_merge(file_path):
         if hasattr(module, 'NODE_DISPLAY_NAME_MAPPINGS'):
             NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
     except Exception as e:
-        print(f"Error importing module {module_name}: {e}")
+        logging.error(f"\033[91m[SP-Nodes] Error importing module {module_name}: {e}\033[0m")
 
 def find_py_files_and_import(dir_path):
     for root, _, files in os.walk(dir_path):

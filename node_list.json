@@ -47,9 +47,8 @@
     "SP_HiresGen": "SP_HiresGen",
     "SP_Pipe": "SP_Pipe",
     "SP_SDLoader": "SP_SDLoader",
-    "SP_SDKSampler": "SP_SDKSampler",
+    "SP_KSampler": "SP_KSampler",
     "SP_FluxLoader": "SP_FluxLoader",
-    "SP_FluxKSampler": "SP_FluxKSampler",
     "SP_SD3Loader": "SP_SD3Loader",
     "SP_SupirSampler": "SP_SupirSampler",
     "SP_SupirSampler_DPMPP2M": "SP_SupirSampler_DPMPP2M",
@@ -58,5 +57,8 @@
     "SP_FlorenceCaption": "SP_FlorenceCaption",
     "SP_FluxUnsampler": "SP_FluxUnsampler",
     "SP_FluxUnsampler_ForwardODESampler": "SP_FluxUnsampler_ForwardODESampler",
-    "SP_FluxUnsampler_InverseSampler": "SP_FluxUnsampler_InverseSampler"
+    "SP_FluxUnsampler_InverseSampler": "SP_FluxUnsampler_InverseSampler",
+    "SP_KSamplerSelect": "SP_KSamplerSelect",
+    "SP_DictValue": "SP_DictValue",
+    "SP_DDInpaint_Pipe": "SP_DDInpaint_Pipe"
 }

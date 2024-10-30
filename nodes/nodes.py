@@ -298,7 +298,7 @@ class LoraLoaderByPath:
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
-    
+
 class LoraLoaderOnlyModelByPath:
     def __init__(self):
         self.loaded_lora = None
@@ -519,7 +519,7 @@ class AlwaysEqualProxy(str):
 
     def __ne__(self, _):
         return False
-    
+
 class StrToCombo:
     @classmethod
     def INPUT_TYPES(s):
@@ -580,7 +580,28 @@ class ComfyuiRuntimeArgs:
         mm.DISABLE_SMART_MEMORY = disable_smart_memory
 
         return str('\n'.join(f'{a[0]}={a[1]}' for a in args._get_kwargs())), 
-        
+
+
+class SP_KSamplerSelect:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS,),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
+            }
+        }
+
+    RETURN_TYPES = (comfy.samplers.KSampler.SAMPLERS, comfy.samplers.KSampler.SCHEDULERS)
+    RETURN_NAMES = ("sampler_name", "scheduler")
+    FUNCTION = "fn"
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, sampler_name, scheduler):
+        return sampler_name, scheduler
+
+
 NODE_CLASS_MAPPINGS = {
     "BoolSwitchOutStr": BoolSwitchOutStr,
     "ImgMetaValueExtractor": ImgMetaValueExtractor,
@@ -592,6 +613,7 @@ NODE_CLASS_MAPPINGS = {
     "TextSplitJoinByDelimiter": TextSplitJoinByDelimiter,
     "StrToCombo": StrToCombo, 
     "ComfyuiRuntimeArgs": ComfyuiRuntimeArgs, 
+    "SP_KSamplerSelect": SP_KSamplerSelect, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
