@@ -21,8 +21,8 @@ class PromptChecker:
             }
         }
 
-    RETURN_TYPES = ('STRING','STRING')
-    RETURN_NAMES = ('prompt','wildcard')
+    RETURN_TYPES = ('STRING',)
+    RETURN_NAMES = ('prompt',)
     FUNCTION = "doit"
     CATEGORY = CATEGORY
 
@@ -38,7 +38,7 @@ class PromptChecker:
         tokens = [t for t in s.tokenize(prompt) if not t.startswith(DISABLED_TOKEN)]
         prompt = ', '.join(tokens)
         wildcard_prompt = process(prompt, seed)
-        return prompt, wildcard_prompt,
+        return wildcard_prompt,
 
     def tokenize(self, s):
         tokens = []
