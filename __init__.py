@@ -93,6 +93,11 @@ except ImportError:
     import nltk
     nltk.download('punkt')
 
+try:
+    import yaml
+except ImportError:
+    process_wrap(pip_install + ['pyyaml'])
+
 from .server import init
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', "WEB_DIRECTORY"]

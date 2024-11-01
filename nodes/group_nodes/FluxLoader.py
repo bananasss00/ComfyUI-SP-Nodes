@@ -3,6 +3,12 @@ from comfy_execution.graph import DynamicPrompt
 
 from .Graph import Graph
 
+def safe_get_filename_list(k):
+    try:
+        return folder_paths.get_filename_list(k)
+    except KeyError:
+        return []
+
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
         return False
@@ -584,7 +590,7 @@ class SP_FluxLoader:
                     [
                         x
                         for x in folder_paths.get_filename_list("diffusion_models")
-                        + folder_paths.get_filename_list("unet_gguf")
+                        + safe_get_filename_list("unet_gguf")
                     ],
                 ),
                 "de_distilled": ("BOOLEAN", {"default": False}),
@@ -657,7 +663,7 @@ class SP_FluxLoader:
     def get_clip_list(s):
         files = []
         files += folder_paths.get_filename_list("clip")
-        files += folder_paths.get_filename_list("clip_gguf")
+        files += safe_get_filename_list("clip_gguf")
         return sorted(files)
 
 class SP_SD3Loader(SP_FluxLoader):
