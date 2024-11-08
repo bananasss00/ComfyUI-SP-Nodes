@@ -6,13 +6,8 @@ import requests, math
 
 API_URL = 'http://localhost:5001/api/v1'
 
-system_prompt = '''you are now a prompt generator for stable diffusion.
-
-rules of prompt generation:
-1) I write a short description of the desired prompt, and you reply with an "improved" prompt in English with added/refined details according to the rules of writing a prompt for Stable Diffusion.
-2) if a style is specified in brackets in the format "prompt description (style)", then finalize the prompt according to this style.
-3) you only write a finished prompt and nothing else!
-4) the main idea should be kept and should be described at the beginning of the prompt.'''
+system_prompt = '''Answer in English. I give you a topic and you write a short description on that topic. The descriptions should be a few sentences long.
+I give you a theme, and you write a short description of the photo in a surrealistic style on that theme. Descriptions should be a few sentences long'''
 
 class LLMMode:
     def __init__(self, system_tag, sys_prompt, user_tag, assistant_tag):
@@ -172,7 +167,7 @@ class OverrideCfg:
     def is_null(self, value):
         return math.isclose(value, 0, abs_tol=1e-4)
 
-def generate_text(api_url, system_prompt, context, prompt, override_cfg: OverrideCfg = None, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
+def generate_text(api_url, system_prompt, context, prompt, override_cfg: OverrideCfg = None, banned_tokens: list[str] = None, llm_mode='Gemma2', preset='default', max_length=200, seed=-1):
     endpoint = f'{api_url}/generate'
     headers = {
         'Content-Type': 'application/json'
@@ -233,6 +228,9 @@ def generate_text(api_url, system_prompt, context, prompt, override_cfg: Overrid
     if override_cfg is not None:
         override_cfg.apply(payload=payload)
     
+    if banned_tokens is not None:
+        payload['banned_tokens'] = banned_tokens
+    
     response = requests.post(endpoint, json=payload, headers=headers)
     
     preset_cfg = json.dumps(payload, indent=4)
@@ -271,7 +269,28 @@ class SP_KoboldCpp_OverrideCfg:
 
     def fn(self, temperature, dynatemp_range, min_p, xtc_probability, xtc_threshold, smoothing_factor, smoothing_curve):
         return OverrideCfg(temperature=temperature, dynatemp_range=dynatemp_range, min_p=min_p, xtc_probability=xtc_probability, xtc_threshold=xtc_threshold, smoothing_factor=smoothing_factor, smoothing_curve=smoothing_curve),
+
+class SP_KoboldCpp_BannedTokens:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {
+                        "tokens": ("STRING", {"default": "banned_token||$||banned phrase 2", "multiline": True}),
+                    },
+                
+                }
+
+    RETURN_TYPES = ('BANNED_TOKENS',)
+    FUNCTION = "fn"
+
+    OUTPUT_NODE = False
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, tokens):
+        return tokens.split('||$||'),
     
+
 class SP_KoboldCpp:
     @classmethod
     def INPUT_TYPES(s):
@@ -292,6 +311,7 @@ class SP_KoboldCpp:
                     },
                     "optional": {
                         "override_cfg": ("OVERRIDE_CFG", ),
+                        "banned_tokens": ("BANNED_TOKENS", ),
                     }
                 }
 
@@ -303,8 +323,8 @@ class SP_KoboldCpp:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, max_length, seed, context='', override_cfg=None):
-        text, payload = generate_text(api_url, system_prompt, context, prompt, override_cfg, llm_mode, preset, max_length=max_length, seed=seed)
+    def fn(self, api_url, system_prompt, prompt, llm_mode, preset, max_length, seed, context='', override_cfg=None, banned_tokens=None):
+        text, payload = generate_text(api_url, system_prompt, context, prompt, override_cfg, banned_tokens, llm_mode, preset, max_length=max_length, seed=seed)
         return text.replace('User:', ''), payload
 
 class SP_KoboldCppWithContext(SP_KoboldCpp):
@@ -348,4 +368,5 @@ NODE_CLASS_MAPPINGS = {
     "SP_KoboldCpp": SP_KoboldCpp,
     "SP_KoboldCppWithContext": SP_KoboldCppWithContext,
     "SP_KoboldCpp_OverrideCfg": SP_KoboldCpp_OverrideCfg,
+    "SP_KoboldCpp_BannedTokens": SP_KoboldCpp_BannedTokens,
 }

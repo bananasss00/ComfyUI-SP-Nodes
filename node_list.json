@@ -14,6 +14,7 @@
     "SP_KoboldCpp": "SP_KoboldCpp",
     "SP_KoboldCppWithContext": "SP_KoboldCppWithContext",
     "SP_KoboldCpp_OverrideCfg": "SP_KoboldCpp_OverrideCfg",
+    "SP_KoboldCpp_BannedTokens": "SP_KoboldCpp_BannedTokens",
     "Random_Model_Merge": "Random_Model_Merge",
     "GodnessMerger_Apply": "GodnessMerger_Apply",
     "GodnessMerger_RAW_Apply": "GodnessMerger_RAW_Apply",
