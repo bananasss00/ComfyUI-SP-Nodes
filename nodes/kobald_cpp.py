@@ -340,42 +340,22 @@ class SP_KoboldCpp:
         return text.replace('User:', ''), payload
 
 class SP_KoboldCppWithContext(SP_KoboldCpp):
-    # @classmethod
-    # def INPUT_TYPES(s):
-    #     d = copy.deepcopy(SP_KoboldCpp.INPUT_TYPES())
-
-    #     items = list(d.items())
-    #     # insert context field after system_prompt
-    #     index = next(i for i, (k, _) in enumerate(items) if k == 'system_prompt') + 1
-    #     items.insert(index, ('context', ("STRING", {"default": '', "multiline": True})))
-
-    #     d = dict(OrderedDict(items))
-    #     print(f'DICT: {d}')
-    #     return d
-    
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":
-                    {
-                        "api_url": ("STRING", {"default": API_URL, "multiline": False}),
-                        "system_prompt": ("STRING", {"default": system_prompt, "multiline": True}),
-                        'context': ("STRING", {"default": '', "multiline": True}),
-                        "prompt": ("STRING", {"default": '', "multiline": True}),
-                        "llm_mode": (['Chat', 'Alpaca', 'Vicuna', 'Metharme',
-                            'Llama2Chat', 'QuestionAnswer', 'ChatML',
-                            'InputOutput', 'CommandR', 'Llama3Chat', 
-                            'Phi3Mini', 'Gemma2', 'Mistral'], ),
-                        "preset": (['simple_logical', 'default', 'simple_balanced',
-                                    'simple_creative', 'silly_tavern', 'coherent_creativity',
-                                    'godlike', 'liminal_drift'], ),
-                        "max_length": ("INT", {"default": 100, "min": 10, "max": 512}),
-                        "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                    },
-                    "optional": {
-                        "override_cfg": ("OVERRIDE_CFG", ),
-                        "banned_tokens": ("BANNED_TOKENS", ),
-                    }
-                }
+        input_types = dict(super().INPUT_TYPES())
+
+        required = input_types["required"]
+        
+        new_required = {}
+        for key, value in required.items():
+            new_required[key] = value
+
+            if key == "system_prompt":
+                new_required["context"] = ("STRING", {"default": '', "multiline": True})
+
+        input_types["required"] = new_required
+
+        return input_types
 
 NODE_CLASS_MAPPINGS = {
     "SP_KoboldCpp": SP_KoboldCpp,
