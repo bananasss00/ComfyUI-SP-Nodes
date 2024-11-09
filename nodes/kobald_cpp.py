@@ -1,3 +1,4 @@
+import codecs
 from collections import OrderedDict
 import copy
 import json
@@ -275,6 +276,7 @@ class SP_KoboldCpp_BannedTokens:
     def INPUT_TYPES(s):
         return {"required":
                     {
+                        "delimiter": ("STRING", {"default": "\\n", "multiline": False}),
                         "tokens": ("STRING", {"default": "banned_token\nbanned phrase\nbanned phrase\\n with newline", "multiline": True}),
                     },
                 
@@ -287,12 +289,14 @@ class SP_KoboldCpp_BannedTokens:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, tokens):
+    def fn(self, delimiter, tokens):
+        delimiter=codecs.decode(delimiter, 'unicode_escape')
+        
         # Remove carriage return characters
         cleaned_tokens = tokens.replace('\r', '')
 
         # Split the string into a list of lines
-        lines = cleaned_tokens.split('\n')
+        lines = cleaned_tokens.split(delimiter)
 
         # Replace escaped newline characters with actual newline characters
         processed_lines = [line.replace('\\n', '\n') for line in lines]
