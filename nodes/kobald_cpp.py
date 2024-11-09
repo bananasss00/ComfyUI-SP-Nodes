@@ -275,7 +275,7 @@ class SP_KoboldCpp_BannedTokens:
     def INPUT_TYPES(s):
         return {"required":
                     {
-                        "tokens": ("STRING", {"default": "banned_token||$||banned phrase 2", "multiline": True}),
+                        "tokens": ("STRING", {"default": "banned_token\nbanned phrase\nbanned phrase\\n with newline", "multiline": True}),
                     },
                 
                 }
@@ -288,7 +288,15 @@ class SP_KoboldCpp_BannedTokens:
     CATEGORY = "SP-Nodes"
 
     def fn(self, tokens):
-        return tokens.split('||$||'),
+        # Remove carriage return characters
+        cleaned_tokens = tokens.replace('\r', '')
+
+        # Split the string into a list of lines
+        lines = cleaned_tokens.split('\n')
+
+        # Replace escaped newline characters with actual newline characters
+        processed_lines = [line.replace('\\n', '\n') for line in lines]
+        return processed_lines,
     
 
 class SP_KoboldCpp:
