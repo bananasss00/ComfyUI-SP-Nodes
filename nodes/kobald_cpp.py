@@ -373,6 +373,7 @@ class SP_KoboldCppWithContext(SP_KoboldCpp):
                     },
                     "optional": {
                         "override_cfg": ("OVERRIDE_CFG", ),
+                        "banned_tokens": ("BANNED_TOKENS", ),
                     }
                 }
 
