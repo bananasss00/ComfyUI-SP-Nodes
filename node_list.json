@@ -62,5 +62,7 @@
     "SP_FluxUnsampler_InverseSampler": "SP_FluxUnsampler_InverseSampler",
     "SP_KSamplerSelect": "SP_KSamplerSelect",
     "SP_DictValue": "SP_DictValue",
-    "SP_DDInpaint_Pipe": "SP_DDInpaint_Pipe"
+    "SP_DDInpaint_Pipe": "SP_DDInpaint_Pipe",
+    "SP_XYGrid": "SP_XYGrid",
+    "SP_XYValues": "SP_XYValues"
 }

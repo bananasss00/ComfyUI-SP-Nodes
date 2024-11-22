@@ -17,6 +17,7 @@ import nltk
 import contextlib
 import codecs
 import logging
+import itertools
 
 import comfy.model_management as mm
 from comfy.cli_args import args
@@ -602,6 +603,78 @@ class SP_KSamplerSelect:
         return sampler_name, scheduler
 
 
+class SP_XYGrid:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "X": (ANY_TYPE,),
+                "Y": (ANY_TYPE,),
+            }
+        }
+
+    RETURN_TYPES = (ANY_TYPE, ANY_TYPE)
+    RETURN_NAMES = ("X_LIST", "Y_LIST")
+    INPUT_IS_LIST = True
+    OUTPUT_IS_LIST = (True,True)
+    FUNCTION = "fn"
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, X, Y):
+        all_lists = [X, Y]
+        combinations = list(itertools.product(*all_lists))
+        return [c[0] for c in combinations], [c[1] for c in combinations]
+    
+class SP_XYValues:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "values": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "placeholder": "value1\nvalue2\nvalue3",
+                    },
+                ),
+                "type": (['int', 'float', 'bool', 'string'],),
+                "delimiter": (
+                    "STRING",
+                    {
+                        "multiline": False,
+                        "dynamicPrompts": False,
+                        "default": "\\n",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = (ANY_TYPE,)
+    RETURN_NAMES = ("values",)
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "fn"
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, values, type, delimiter):
+        delimiter=codecs.decode(delimiter, 'unicode_escape')
+        values = values.replace('\r', '').split(delimiter)
+
+        match type:
+            case 'int':
+                values = [int(v) for v in values]
+            case 'float':
+                values = [float(v) for v in values]
+            case 'bool':
+                values = [v.lower() in ['true', 'yes', '+'] for v in values]
+            case _:
+                pass
+            
+        return values,
+    
+
 NODE_CLASS_MAPPINGS = {
     "BoolSwitchOutStr": BoolSwitchOutStr,
     "ImgMetaValueExtractor": ImgMetaValueExtractor,
@@ -614,6 +687,8 @@ NODE_CLASS_MAPPINGS = {
     "StrToCombo": StrToCombo, 
     "ComfyuiRuntimeArgs": ComfyuiRuntimeArgs, 
     "SP_KSamplerSelect": SP_KSamplerSelect, 
+    "SP_XYGrid": SP_XYGrid, 
+    "SP_XYValues": SP_XYValues, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
