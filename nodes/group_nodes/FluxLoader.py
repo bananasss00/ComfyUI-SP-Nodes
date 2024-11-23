@@ -166,6 +166,8 @@ def ksampler_main(
     model=None,
     latent_image=None,
     image=None,
+    sampler=None,
+    sigmas=None
 ):
     graph = Graph()
 
@@ -217,18 +219,28 @@ def ksampler_main(
     
     positive, cfg = flux_patches(positive, cfg)
 
-    latent = graph.KSampler(
-        model,
-        positive,
-        negative,
-        latent,
-        seed,
-        steps,
-        cfg,
-        sampler_name,
-        scheduler,
-        denoise,
-    )
+    # latent = graph.KSampler(
+    #     model,
+    #     positive,
+    #     negative,
+    #     latent,
+    #     seed,
+    #     steps,
+    #     cfg,
+    #     sampler_name,
+    #     scheduler,
+    #     denoise,
+    # )
+
+    # CustomSampler
+    guider = graph.CFGGuider(model, positive, negative, cfg)
+    noise = graph.RandomNoise(seed)
+
+    sigmas = graph.AnySwitch(sigmas, graph.BasicScheduler(model, scheduler, steps, denoise))
+    sampler = graph.AnySwitch(sampler, graph.KSamplerSelect(sampler_name))
+
+    output, denoised_output = graph.SamplerCustomAdvanced(noise, guider, sampler, sigmas, latent)
+    latent = denoised_output
 
     image = None
     if vae_decode or preview:
@@ -439,7 +451,6 @@ class SP_SDLoader:
             "expand": graph.finalize(),
         }
 
-
 class SP_KSampler:
     @classmethod
     def INPUT_TYPES(s):
@@ -533,6 +544,8 @@ class SP_KSampler:
                     "IMAGE",
                     {"tooltip": "The image to denoise.", "rawLink": True},
                 ),
+                "sampler": ("SAMPLER", {"rawLink": True},),
+                "sigmas": ("SIGMAS", {"rawLink": True},),
             },
         }
 
@@ -560,6 +573,8 @@ class SP_KSampler:
         model=None,
         latent_image=None,
         image=None,
+        sampler=None,
+        sigmas=None
     ):
         return ksampler_main(
             sp_pipe,
@@ -576,6 +591,8 @@ class SP_KSampler:
             model,
             latent_image,
             image,
+            sampler,
+            sigmas
         )
 
 

@@ -539,3 +539,46 @@ class Graph:
     @requires_extension('ConsoleDebug+', *ESSENTIALS)
     def ConsoleDebug(self, value, prefix=r"Value:"):
         node = self.graph.node('ConsoleDebug+', value=value, prefix=prefix)
+
+    def SamplerCustomAdvanced(self, noise, guider, sampler, sigmas, latent_image):
+        '''
+        return output, denoised_output
+        '''
+        node = self.graph.node('SamplerCustomAdvanced', noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent_image)
+        return node.out(0), node.out(1)
+
+    def KSamplerSelect(self, sampler_name):
+        '''
+        return sampler
+        '''
+        node = self.graph.node('KSamplerSelect', sampler_name=sampler_name)
+        return node.out(0)
+
+    def BasicScheduler(self, model, scheduler, steps, denoise):
+        '''
+        return sigmas
+        '''
+        node = self.graph.node('BasicScheduler', model=model, scheduler=scheduler, steps=steps, denoise=denoise)
+        return node.out(0)
+
+    def BasicGuider(self, model, conditioning):
+        '''
+        return guider
+        '''
+        node = self.graph.node('BasicGuider', model=model, conditioning=conditioning)
+        return node.out(0)
+
+    def RandomNoise(self, noise_seed):
+        '''
+        return noise
+        '''
+        node = self.graph.node('RandomNoise', noise_seed=noise_seed)
+        return node.out(0)
+
+    def CFGGuider(self, model, positive, negative, cfg):
+        '''
+        return guider
+        '''
+        node = self.graph.node('CFGGuider', model=model, positive=positive, negative=negative, cfg=cfg)
+        return node.out(0)
+
