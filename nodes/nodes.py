@@ -610,6 +610,7 @@ class SP_XYGrid:
             "required": {
                 "X": (ANY_TYPE,),
                 "Y": (ANY_TYPE,),
+                # "swap_axis": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -621,7 +622,8 @@ class SP_XYGrid:
 
     CATEGORY = "SP-Nodes"
 
-    def fn(self, X, Y):
+    def fn(self, X, Y, swap_axis=False):
+        # all_lists = [X, Y] if swap_axis[0] else [Y, X]
         all_lists = [X, Y]
         combinations = list(itertools.product(*all_lists))
         return [c[0] for c in combinations], [c[1] for c in combinations]
@@ -673,7 +675,41 @@ class SP_XYValues:
                 pass
             
         return values,
-    
+
+class SP_ListAny:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "optional": {
+                "value1": (ANY_TYPE,),
+                "value2": (ANY_TYPE,),
+                "value3": (ANY_TYPE,),
+                "value4": (ANY_TYPE,),
+                "value5": (ANY_TYPE,),
+            }
+        }
+
+    RETURN_TYPES = (ANY_TYPE,)
+    RETURN_NAMES = ("values",)
+    INPUT_IS_LIST = True
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "fn"
+
+    CATEGORY = "SP-Nodes"
+
+    def fn(self, **kwargs):
+        result = []
+        for value in kwargs.values():
+            if value is None:
+                continue
+            result.extend(value)
+
+            # if isinstance(value, list):
+            #     result.extend(value)
+            # else:
+            #     result.append(value)
+        return result,
+        
 
 NODE_CLASS_MAPPINGS = {
     "BoolSwitchOutStr": BoolSwitchOutStr,
@@ -689,6 +725,7 @@ NODE_CLASS_MAPPINGS = {
     "SP_KSamplerSelect": SP_KSamplerSelect, 
     "SP_XYGrid": SP_XYGrid, 
     "SP_XYValues": SP_XYValues, 
+    "SP_ListAny": SP_ListAny, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

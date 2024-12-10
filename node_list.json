@@ -64,5 +64,6 @@
     "SP_DictValue": "SP_DictValue",
     "SP_DDInpaint_Pipe": "SP_DDInpaint_Pipe",
     "SP_XYGrid": "SP_XYGrid",
-    "SP_XYValues": "SP_XYValues"
+    "SP_XYValues": "SP_XYValues",
+    "SP_ListAny": "SP_ListAny"
 }

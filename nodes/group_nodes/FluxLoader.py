@@ -164,6 +164,8 @@ def ksampler_main(
     vae_decode,
     preview,
     model=None,
+    pos=None,
+    neg=None,
     latent_image=None,
     image=None,
     sampler=None,
@@ -177,6 +179,8 @@ def ksampler_main(
     )
 
     model = graph.AnySwitch(model, pipe_model)
+    positive = graph.AnySwitch(pos, positive)
+    negative = graph.AnySwitch(neg, negative)
 
     def get_prior_latent(image, pipe_image, latent_image, latent):
         # workflow: .assets\select_latent_or_encoded_latent_ref.png
@@ -323,6 +327,7 @@ class SP_DDInpaint_Pipe:
                 "sp_pipe": ("SP_PIPE",),
                 "pixels": ("IMAGE",),
                 "mask": ("MASK",),
+                "noise_mask": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -330,11 +335,11 @@ class SP_DDInpaint_Pipe:
     RETURN_NAMES = "sp_pipe",
     FUNCTION = "fn"
 
-    def fn(self, sp_pipe, pixels, mask):
+    def fn(self, sp_pipe, pixels, mask, noise_mask):
         graph = Graph()
 
         model = graph.DifferentialDiffusion(sp_pipe['model'])
-        positive, negative, latent = graph.InpaintModelConditioning(sp_pipe['positive'], sp_pipe['negative'], sp_pipe['vae'], pixels, mask)
+        positive, negative, latent = graph.InpaintModelConditioning(sp_pipe['positive'], sp_pipe['negative'], sp_pipe['vae'], pixels, mask, noise_mask)
 
         sp_pipe = graph.SP_Pipe(sp_pipe=sp_pipe, model=model, positive=positive, negative=negative, latent=latent)[0]
 
@@ -536,6 +541,8 @@ class SP_KSampler:
                         "rawLink": True,
                     },
                 ),
+                "positive": ("CONDITIONING", {"rawLink": True}),
+                "negative": ("CONDITIONING", {"rawLink": True}),
                 "latent_image": (
                     "LATENT",
                     {"tooltip": "The latent image to denoise.", "rawLink": True},
@@ -571,6 +578,8 @@ class SP_KSampler:
         preview,
         cfg=1.0,
         model=None,
+        positive=None,
+        negative=None,
         latent_image=None,
         image=None,
         sampler=None,
@@ -589,6 +598,8 @@ class SP_KSampler:
             vae_decode,
             preview,
             model,
+            positive,
+            negative,
             latent_image,
             image,
             sampler,

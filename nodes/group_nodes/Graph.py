@@ -68,14 +68,13 @@ class Graph:
         '''
         node = self.graph.node('DifferentialDiffusion', model=model)
         return node.out(0)
-
-    def InpaintModelConditioning(self, positive, negative, vae, pixels, mask):
+    
+    def InpaintModelConditioning(self, positive, negative, vae, pixels, mask, noise_mask):
         '''
         return positive, negative, latent
         '''
-        node = self.graph.node('InpaintModelConditioning', positive=positive, negative=negative, vae=vae, pixels=pixels, mask=mask)
+        node = self.graph.node('InpaintModelConditioning', positive=positive, negative=negative, vae=vae, pixels=pixels, mask=mask, noise_mask=noise_mask)
         return node.out(0), node.out(1), node.out(2)
-
 
     def ConditioningZeroOut(self, conditioning):
         '''
