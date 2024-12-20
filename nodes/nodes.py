@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import comfy.ldm.modules.attention
 import numpy as np
 import folder_paths
 from PIL import Image, ImageOps
@@ -18,6 +19,7 @@ import contextlib
 import codecs
 import logging
 import itertools
+import importlib
 
 import comfy.model_management as mm
 from comfy.cli_args import args
@@ -28,6 +30,8 @@ import comfy_extras.nodes_freelunch as nodes_freelunch
 
 from aiohttp import web
 from folder_paths import recursive_search, filter_files_extensions
+import comfy.ldm
+import comfy.ldm.modules
 from server import PromptServer
 
 # ANSI escape codes for colors
@@ -548,6 +552,7 @@ class ComfyuiRuntimeArgs:
         return {
             "required": {
                 "fp8_mode": (["off", "fp8_e4m3fn", "fp8_e5m2"],),
+                "attention": (["sage", "sdp", "xformers"],),
                 "fast": ('BOOLEAN', {"default": False}),
                 "extra_reserved_vram_mb": ("INT", {"default": 600, "min": 400, "max": 24576, "step": 1}),
                 "disable_smart_memory": ('BOOLEAN', {"default": False}),
@@ -563,7 +568,7 @@ class ComfyuiRuntimeArgs:
     OUTPUT_NODE = True
     CATEGORY = CATEGORY
 
-    def doit(s, fp8_mode, fast, extra_reserved_vram_mb, disable_smart_memory, optional=None):
+    def doit(s, fp8_mode, attention, fast, extra_reserved_vram_mb, disable_smart_memory, optional=None):
         if fp8_mode == 'fp8_e4m3fn':
             args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = True
             args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = False
@@ -573,6 +578,43 @@ class ComfyuiRuntimeArgs:
         else:
             args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = False
             args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = False
+
+        attn = comfy.ldm.modules.attention
+        match attention:
+            case 'sage':
+                comfy.model_management.XFORMERS_IS_AVAILABLE = False
+                comfy.model_management.ENABLE_PYTORCH_ATTENTION = True
+                args.use_sage_attention = True
+                attn.optimized_attention = attn.optimized_attention_masked = attn.attention_sage
+                if not hasattr(attn, 'sageattn') or attn.sageattn is None:
+                    attn.sageattn = importlib.import_module('sageattention').sageattn
+                torch.backends.cuda.enable_math_sdp(True)
+                torch.backends.cuda.enable_flash_sdp(True)
+                torch.backends.cuda.enable_mem_efficient_sdp(True)
+            case 'sdp':
+                comfy.model_management.XFORMERS_IS_AVAILABLE = False
+                comfy.model_management.ENABLE_PYTORCH_ATTENTION = True
+                args.use_sage_attention = False
+                attn.optimized_attention = attn.optimized_attention_masked = attn.attention_pytorch
+                torch.backends.cuda.enable_math_sdp(True)
+                torch.backends.cuda.enable_flash_sdp(True)
+                torch.backends.cuda.enable_mem_efficient_sdp(True)
+            case 'xformers':
+                comfy.model_management.XFORMERS_IS_AVAILABLE = True
+                comfy.model_management.ENABLE_PYTORCH_ATTENTION = False
+                args.use_sage_attention = False
+                attn.optimized_attention = attn.optimized_attention_masked = attn.attention_xformers
+                if not hasattr(attn, 'xformers') or attn.xformers is None:
+                    attn.xformers = importlib.import_module('xformers')
+                    attn.xformers.ops = importlib.import_module('xformers.ops')
+                torch.backends.cuda.enable_math_sdp(False)
+                torch.backends.cuda.enable_flash_sdp(False)
+                torch.backends.cuda.enable_mem_efficient_sdp(False)
+            case _:
+                comfy.model_management.XFORMERS_IS_AVAILABLE = False
+                comfy.model_management.ENABLE_PYTORCH_ATTENTION = False
+                args.use_sage_attention = False
+                attn.optimized_attention = attn.optimized_attention_masked = attn.attention_sub_quad
 
         args.fast = fast
 
