@@ -69,7 +69,8 @@ CONTEXT = {
     "image": "IMAGE",
 }
 
-def load_unet_and_dual_clip(
+# TODO: refactor this shit
+def make_pipe(
         unet_name,
         weight_dtype,
         vae_name,
@@ -84,7 +85,12 @@ def load_unet_and_dual_clip(
         clip_type='flux',
         clip_name3=None,
         negative=None,
-        de_distilled=False
+        de_distilled=False,
+        hunyuan_fast=False,
+        empty_latent_length=0,
+        image=None,
+        image_megapixels=0,
+        image_tile_size=0
     ):
     graph = Graph()
 
@@ -110,7 +116,10 @@ def load_unet_and_dual_clip(
     if clip_name2 == "None":
         clip = graph.CLIPLoaderGGUF(clip_name1)
     elif clip_name3 == "None":
-        clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
+        if clip_type != 'hunyuan_video':
+            clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
+        else:
+            clip = graph.DualCLIPLoader(clip_name1, clip_name2, clip_type)
     else:
         clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
 
@@ -131,7 +140,26 @@ def load_unet_and_dual_clip(
 
     # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
 
-    latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
+    latent = None
+    if clip_type != 'hunyuan_video':
+        latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
+    else:
+        if image is None:
+            latent = graph.EmptyHunyuanLatentVideo(empty_latent_width, empty_latent_height, empty_latent_length, 1)
+        else:
+            if image_megapixels > 0.01:
+                image = graph.ImageScaleToTotalPixels(image, megapixels=image_megapixels)
+
+            image, w, h = graph.ImageResize(image, width=0, height=0,
+                                        interpolation='nearest', method='fill / crop',
+                                        condition='always', multiple_of=16)
+            latent = graph.VAEEncode(image, vae, image_tile_size)
+
+        model = graph.ModelSamplingSD3(model, 17.0 if hunyuan_fast else 7.0)
+
+    _model_type = None
+    if clip_type == "flux" and not de_distilled or clip_type == "hunyuan_video":
+        _model_type = clip_type
 
     # SP_Pipe
     sp_pipe = graph.SP_Pipe(
@@ -143,7 +171,7 @@ def load_unet_and_dual_clip(
         neg,
         latent,
         None,
-        _model_type=("flux" if clip_type == "flux" and not de_distilled else None),
+        _model_type=_model_type,
     )[0]
 
     return {
@@ -214,14 +242,15 @@ def ksampler_main(
     if inject_noise > 0.01:
         latent = graph.InjectLatentNoise(latent, noise_seed=seed, noise_strength=inject_noise)
 
-    def flux_patches(positive, cfg):
+    def apply_distilled_cfg(positive, cfg, type):
         model_type = graph.SP_DictValue(sp_pipe, '_model_type')
-        is_flux = graph.ImpactCompare('flux', model_type)
+        is_flux = graph.ImpactCompare(type, model_type)
         positive = graph.ImpactConditionalBranch(tt_value=graph.FluxGuidance(positive, cfg), ff_value=positive, cond=is_flux)
         cfg = graph.ImpactConditionalBranch(tt_value=1.0, ff_value=cfg, cond=is_flux)
         return positive, cfg
     
-    positive, cfg = flux_patches(positive, cfg)
+    positive, cfg = apply_distilled_cfg(positive, cfg, 'flux')
+    positive, cfg = apply_distilled_cfg(positive, cfg, 'hunyuan_video')
 
     # latent = graph.KSampler(
     #     model,
@@ -675,7 +704,7 @@ class SP_FluxLoader:
         empty_latent_height,
         clip_type = 'flux', clip_name3 = "None", negative = None
     ):
-        return load_unet_and_dual_clip(unet_name,
+        return make_pipe(unet_name,
             weight_dtype,
             vae_name,
             clip_name1,
@@ -754,11 +783,111 @@ class SP_SD3Loader(SP_FluxLoader):
             empty_latent_width,
             empty_latent_height, clip_type, clip_name3, negative)
 
+class SP_HunyuanLoader:
+    CATEGORY = "SP-Nodes/Group Nodes"
+
+    @classmethod
+    def INPUT_TYPES(self):
+        inputs = {
+            "required": {
+                "unet_name": (
+                    [
+                        x
+                        for x in folder_paths.get_filename_list("diffusion_models")
+                        + safe_get_filename_list("unet_gguf")
+                    ],
+                ),
+                "hunyuan_fast": ("BOOLEAN", {"default": False}),
+                "weight_dtype": (
+                    [
+                        "fp8_e4m3fn",
+                        "fp8_e4m3fn_fast",
+                        "fp8_e5m2",
+                        "nf4-float8_e4m3fn",
+                        "nf4-float8_e5m2",
+                        "gguf",
+                    ],
+                ),
+                "vae_name": (nodes.VAELoader.vae_list(),),
+                "clip_name1": (self.get_clip_list(),),
+                "clip_name2": (self.get_clip_list(),),
+                "positive": ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "positive"}),
+                "empty_latent_width": (
+                    "INT",
+                    {"default": 848, "min": 64, "max": MAX_RESOLUTION, "step": 8},
+                ),
+                "empty_latent_height": (
+                    "INT",
+                    {"default": 480, "min": 64, "max": MAX_RESOLUTION, "step": 8},
+                ),
+                "empty_latent_length": (
+                    "INT",
+                    {"default": 73, "min": 1, "max": 100, "step": 1},
+                ),
+                "image_tile_size": (
+                    "INT",
+                    {"default": 256, "min": 64, "max": 4096, "step": 64},
+                ),
+                "image_megapixels": (
+                    "FLOAT",
+                    {"default": 0, "min": 0, "max": 4, "step": 0.1},
+                ),
+            },
+            "optional": {
+                "image": (
+                    "IMAGE",
+                    {"tooltip": "The image to denoise.", "rawLink": True},
+                ),
+            },
+        }
+        return inputs
+
+    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
+    FUNCTION = "fn"
+
+    def fn(
+        self,
+        unet_name,
+        hunyuan_fast,
+        weight_dtype,
+        vae_name,
+        clip_name1,
+        clip_name2,
+        positive,
+        empty_latent_width,
+        empty_latent_height,
+        empty_latent_length,
+        image_megapixels,
+        image_tile_size,
+        image=None,
+        clip_type = 'hunyuan_video', clip_name3 = "None", negative = None
+    ):
+        return make_pipe(unet_name,
+            weight_dtype,
+            vae_name,
+            clip_name1,
+            clip_name2,
+            "None",
+            0.0,
+            positive,
+            "width x height (custom)",
+            empty_latent_width,
+            empty_latent_height, clip_type, clip_name3, negative, False, hunyuan_fast, empty_latent_length, image, image_megapixels, image_tile_size)
+
+    @classmethod
+    def get_clip_list(s):
+        files = []
+        files += folder_paths.get_filename_list("clip")
+        files += safe_get_filename_list("clip_gguf")
+        return sorted(files)
+    
 NODE_CLASS_MAPPINGS = {
     "SP_Pipe": SP_Pipe,
     "SP_SDLoader": SP_SDLoader,
     "SP_KSampler": SP_KSampler,
     "SP_FluxLoader": SP_FluxLoader,
+    "SP_HunyuanLoader": SP_HunyuanLoader,
     "SP_SD3Loader": SP_SD3Loader,
     "SP_DictValue": SP_DictValue,
     "SP_DDInpaint_Pipe": SP_DDInpaint_Pipe,

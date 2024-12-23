@@ -20,6 +20,7 @@ def get_requirements():
         'SP_SDKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
         'SP_FluxKSampler': ["rgthree-comfy", "ComfyUI-Impact-Pack"],
         'SP_FluxLoader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
+        'SP_HunyuanLoader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF", "ComfyUI_essentials"],
         'SP_SD3Loader': ["ComfyUI_bitsandbytes_NF4-Lora", "ComfyUI-GGUF"],
         'SP_FlorenceCaption': ["ComfyUI-Florence2"],
         'SP_FluxUnsampler': ["ComfyUI-Fluxtapoz", "ComfyUI_essentials"],
@@ -233,21 +234,23 @@ class Graph:
         )
         return tuple(node.out(i) for i in range(8))
 
-    def VAEEncode(self, image, vae, tile_size=0):
+    def VAEEncode(self, image, vae, tile_size=0, overlap=64):
         node = self.graph.node(
             "VAEEncodeTiled" if tile_size else "VAEEncode",
             pixels=image,
             vae=vae,
             tile_size=tile_size,
+            overlap=overlap
         )
         return node.out(0)
 
-    def VAEDecode(self, latent, vae, tile_size=0):
+    def VAEDecode(self, latent, vae, tile_size=0, overlap=64):
         node = self.graph.node(
             "VAEDecodeTiled" if tile_size else "VAEDecode",
             samples=latent,
             vae=vae,
             tile_size=tile_size,
+            overlap=overlap
         )
         return node.out(0)
 
@@ -420,6 +423,14 @@ class Graph:
         node = self.graph.node('InjectLatentNoise+', latent=latent, mask=mask, noise_seed=noise_seed, noise_strength=noise_strength, normalize=normalize)
         return node.out(0)
 
+    @requires_extension('ImageResize+', *ESSENTIALS)
+    def ImageResize(self, image, width=0, height=0, interpolation=r"nearest", method=r"fill / crop", condition=r"always", multiple_of=16):
+        '''
+        return image, width, height
+        '''
+        node = self.graph.node('ImageResize+', image=image, width=width, height=height, interpolation=interpolation, method=method, condition=condition, multiple_of=multiple_of)
+        return node.out(0), node.out(1), node.out(2)
+    
     
     @requires_extension('Florence2Run', *FLORENCE2)
     def Florence2Run(self, image, florence2_model, text_input=r"", task=r"more_detailed_caption", fill_mask=True, keep_model_loaded=False, max_new_tokens=1024, num_beams=3, do_sample=True, output_mask_select=r"", seed=1):
@@ -580,4 +591,36 @@ class Graph:
         '''
         node = self.graph.node('CFGGuider', model=model, positive=positive, negative=negative, cfg=cfg)
         return node.out(0)
+    
+    def EmptyHunyuanLatentVideo(self, width=848, height=480, length=73, batch_size=1):
+        '''
+        return latent
+        '''
+        node = self.graph.node('EmptyHunyuanLatentVideo', width=width, height=height, length=length, batch_size=batch_size)
+        return node.out(0)
+
+    def ModelSamplingSD3(self, model, shift):
+        '''
+        return model
+        '''
+        node = self.graph.node('ModelSamplingSD3', model=model, shift=shift)
+        return node.out(0)
+
+    def ImageScaleToTotalPixels(self, image, upscale_method=r"nearest-exact", megapixels=1.0):
+        '''
+        return image
+        '''
+        node = self.graph.node('ImageScaleToTotalPixels', image=image, upscale_method=upscale_method, megapixels=megapixels)
+        return node.out(0)
+
+    def DualCLIPLoader(self, clip_name1, clip_name2, type):
+        '''
+        return clip
+        '''
+        node = self.graph.node('DualCLIPLoader', clip_name1=clip_name1, clip_name2=clip_name2, type=type)
+        return node.out(0)
+    
+    
+
+
 

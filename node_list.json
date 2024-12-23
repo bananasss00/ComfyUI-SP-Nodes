@@ -52,6 +52,7 @@
     "SP_KSampler": "SP_KSampler",
     "SP_FluxLoader": "SP_FluxLoader",
     "SP_SD3Loader": "SP_SD3Loader",
+    "SP_HunyuanLoader": "SP_HunyuanLoader",
     "SP_SupirSampler": "SP_SupirSampler",
     "SP_SupirSampler_DPMPP2M": "SP_SupirSampler_DPMPP2M",
     "SP_SupirSampler_EDM": "SP_SupirSampler_EDM",
@@ -65,5 +66,6 @@
     "SP_DDInpaint_Pipe": "SP_DDInpaint_Pipe",
     "SP_XYGrid": "SP_XYGrid",
     "SP_XYValues": "SP_XYValues",
-    "SP_ListAny": "SP_ListAny"
+    "SP_ListAny": "SP_ListAny",
+    "SP_DynamicCombo": "SP_DynamicCombo"
 }
