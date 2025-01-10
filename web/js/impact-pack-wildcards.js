@@ -22,15 +22,15 @@ app.registerExtension({
 
 			Object.defineProperty(combo_widget, "value", {
 				set: (value) => {
-				        const stackTrace = new Error().stack;
-                        if(stackTrace.includes('inner_value_change')) {
-                            if(value != "Select the Wildcard to add to the text") {
+				        // const stackTrace = new Error().stack;
+                        // if(stackTrace.includes('inner_value_change')) {
+                            if(value !== "Select the Wildcard to add to the text") {
                                 if(wildcard_text_widget.value != '')
                                     wildcard_text_widget.value += ', '
 
 	                            wildcard_text_widget.value += value;
                             }
-                        }
+                        // }
 					},
 				get: () => { return "Select the Wildcard to add to the text"; }
 			});

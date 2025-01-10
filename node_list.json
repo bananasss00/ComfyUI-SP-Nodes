@@ -67,5 +67,6 @@
     "SP_XYGrid": "SP_XYGrid",
     "SP_XYValues": "SP_XYValues",
     "SP_ListAny": "SP_ListAny",
-    "SP_DynamicCombo": "SP_DynamicCombo"
+    "SP_DynamicCombo": "SP_DynamicCombo",
+    "SP_UnlistValues": "SP_UnlistValues"
 }

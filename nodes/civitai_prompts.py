@@ -13,8 +13,8 @@ class CivitaiPrompts:
                 "nsfw": (["", "Soft", "Mature", "X"], {"default": "Soft"}),
                 "sort": (["Most Reactions", "Most Comments", "Newest"], {"default": "Most Reactions"}),
                 "period": (["AllTime", "Year", "Month", "Week", "Day"], {"default": "Week"}),
-                "delete_loras": (["False", "True"], {"default": "False"}),
-                "page": ("INT", {"default": 1, "min": 1, "max": 1000}),
+                "delete_loras": ("BOOLEAN", {"default": True}),
+                "pages": ("INT", {"default": 1, "min": 1, "max": 1000}),
             },
             "optional": {
 
@@ -29,7 +29,7 @@ class CivitaiPrompts:
 
     CATEGORY = 'SP-Nodes'
 
-    def doit(self, limit, nsfw, sort, period, delete_loras, page, **kwargs):
+    def parse_page(limit, nsfw, sort, period, delete_loras, cursor):
         if not nsfw:
             nsfw = None
 
@@ -38,10 +38,9 @@ class CivitaiPrompts:
             "nsfw": nsfw, # (None, Soft, Mature, X)
             "sort": sort, # (Most Reactions, Most Comments, Newest)
             "period": period, # (AllTime, Year, Month, Week, Day)
-            "page": page
         }
 
-        response = requests.get("https://civitai.com/api/v1/images", params=params)
+        response = requests.get(f"https://civitai.com/api/v1/images?cursor={cursor}", params=params)
 
         prompts = []
         if response.status_code == 200:
@@ -58,9 +57,17 @@ class CivitaiPrompts:
                 
                 prompt = prompt.replace('\r', '').replace('\n', ' ')
 
-                prompts.append(re.sub(r'<[^>]*>', '', prompt) if delete_loras == 'True' else prompt)
+                prompts.append(re.sub(r'<[^>]*>', '', prompt) if delete_loras else prompt)
         else:
             print("Error:", response.status_code)
+
+        return prompts
+
+    def doit(self, limit, nsfw, sort, period, delete_loras, pages, **kwargs):
+        prompts = []
+
+        for i in range(pages):
+            prompts.extend(parse_page(limit, nsfw, sort, period, delete_loras, i * limit))
 
         return '\n'.join(prompts), 
 

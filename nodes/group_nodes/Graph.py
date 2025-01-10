@@ -205,6 +205,12 @@ class Graph:
             batch_size=batch_size,
         ).out(0)
 
+    def SP_UnlistValues(self, value):
+        return self.graph.node(
+            "SP_UnlistValues",
+            value=value,
+        ).out(0)
+
     def SP_Pipe(
         self,
         sp_pipe,
@@ -613,11 +619,11 @@ class Graph:
         node = self.graph.node('ImageScaleToTotalPixels', image=image, upscale_method=upscale_method, megapixels=megapixels)
         return node.out(0)
 
-    def DualCLIPLoader(self, clip_name1, clip_name2, type):
+    def DualCLIPLoader(self, clip_name1, clip_name2, type, device='default'):
         '''
         return clip
         '''
-        node = self.graph.node('DualCLIPLoader', clip_name1=clip_name1, clip_name2=clip_name2, type=type)
+        node = self.graph.node('DualCLIPLoader', clip_name1=clip_name1, clip_name2=clip_name2, type=type, device=device)
         return node.out(0)
     
     

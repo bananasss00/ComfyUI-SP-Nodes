@@ -205,6 +205,7 @@ def ksampler_main(
     sp_pipe, pipe_model, clip, vae, positive, negative, latent, pipe_image = (
         graph.SP_Pipe(sp_pipe)
     )
+    sp_pipe_orig = sp_pipe
 
     model = graph.AnySwitch(model, pipe_model)
     positive = graph.AnySwitch(pos, positive)
@@ -294,7 +295,7 @@ def ksampler_main(
     )[0]
     
     return {
-        "result": (sp_pipe, latent, image),
+        "result": (sp_pipe, sp_pipe_orig, graph.SP_UnlistValues(latent), graph.SP_UnlistValues(image)),
         "expand": graph.finalize(),
     }
 
@@ -485,6 +486,25 @@ class SP_SDLoader:
             "expand": graph.finalize(),
         }
 
+# TODO: temp fix for rawLink list batching
+class SP_UnlistValues:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "value": (AnyType('*'),),
+            },
+        }
+
+    RETURN_TYPES = (AnyType('*'),)
+    INPUT_IS_LIST = True
+    OUTPUT_IS_LIST = (False,)
+    FUNCTION = "test"
+    CATEGORY = "SP-Nodes/Group Nodes/Tmp"
+
+    def test(s, value):
+        return value,
+
 class SP_KSampler:
     @classmethod
     def INPUT_TYPES(s):
@@ -585,7 +605,9 @@ class SP_KSampler:
             },
         }
 
-    RETURN_TYPES = ("SP_PIPE", "LATENT", "IMAGE")
+    RETURN_TYPES = ("SP_PIPE", "SP_PIPE", "LATENT", "IMAGE")
+    RETURN_NAMES = ("SP_PIPE", "SP_PIPE_SRC", "LATENT", "IMAGE")
+    OUTPUT_IS_LIST = (False, False, True, True)
     OUTPUT_TOOLTIPS = ("The denoised latent.", "The decoded image")
     FUNCTION = "fn"
     OUTPUT_NODE = True
@@ -891,4 +913,5 @@ NODE_CLASS_MAPPINGS = {
     "SP_SD3Loader": SP_SD3Loader,
     "SP_DictValue": SP_DictValue,
     "SP_DDInpaint_Pipe": SP_DDInpaint_Pipe,
+    "SP_UnlistValues": SP_UnlistValues,
 }

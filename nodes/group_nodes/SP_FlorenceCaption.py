@@ -42,6 +42,7 @@ class SP_FlorenceCaption:
 
     RETURN_TYPES = ("STRING", )
     RETURN_NAMES = ("caption", )
+    OUTPUT_IS_LIST = (True,)
     FUNCTION = "fn"
 
     def fn(self, image, model, precision, task, seed):
@@ -55,7 +56,7 @@ class SP_FlorenceCaption:
         ]
 
         return {
-            "result": (caption,),
+            "result": (graph.SP_UnlistValues(caption),),
             "expand": graph.finalize(),
         }
 

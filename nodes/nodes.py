@@ -87,25 +87,28 @@ class ImgMetaValueExtractor:
         return float("NaN")
 
     def doit(s, path, prompt_type, value1, value2, value3, value4, value5):
-        png_path = s._get_next_png(path)
-        print(f'[{s.index}] png_path: {png_path}')
-        img = Image.open(png_path)
-        image = torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
-        img.close()
+        try:
+            png_path = s._get_next_png(path)
+            print(f'[{s.index}] png_path: {png_path}')
+            img = Image.open(png_path)
+            image = torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
+            img.close()
 
-        if isinstance(img.info, dict) and prompt_type in img.info:
-            workflow = json.loads(img.info[prompt_type])
-            return (image,
-                os.path.splitext(os.path.basename(png_path))[0],
-                s._read_value(workflow, value1, prompt_type),
-                s._read_value(workflow, value2, prompt_type),
-                s._read_value(workflow, value3, prompt_type),
-                s._read_value(workflow, value4, prompt_type),
-                s._read_value(workflow, value5, prompt_type),
-                s._comfyui_prompt_to_str(img.info)
-                )
-        else:
-            return (None, None, None, None, None, None, None, None,)
+            if isinstance(img.info, dict) and prompt_type in img.info:
+                workflow = json.loads(img.info[prompt_type])
+                return (image,
+                    os.path.splitext(os.path.basename(png_path))[0],
+                    s._read_value(workflow, value1, prompt_type),
+                    s._read_value(workflow, value2, prompt_type),
+                    s._read_value(workflow, value3, prompt_type),
+                    s._read_value(workflow, value4, prompt_type),
+                    s._read_value(workflow, value5, prompt_type),
+                    s._comfyui_prompt_to_str(img.info)
+                    )
+        except:
+            pass
+
+        return (None, None, None, None, None, None, None, None,)
     
     def _comfyui_prompt_to_str(s, info):
         result = {}
