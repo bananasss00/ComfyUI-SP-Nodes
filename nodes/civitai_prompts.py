@@ -29,7 +29,7 @@ class CivitaiPrompts:
 
     CATEGORY = 'SP-Nodes'
 
-    def parse_page(limit, nsfw, sort, period, delete_loras, cursor):
+    def parse_page(self, limit, nsfw, sort, period, delete_loras, cursor):
         if not nsfw:
             nsfw = None
 
@@ -67,7 +67,7 @@ class CivitaiPrompts:
         prompts = []
 
         for i in range(pages):
-            prompts.extend(parse_page(limit, nsfw, sort, period, delete_loras, i * limit))
+            prompts.extend(self.parse_page(limit, nsfw, sort, period, delete_loras, i * limit))
 
         return '\n'.join(prompts), 
 
