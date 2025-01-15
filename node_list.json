@@ -68,5 +68,6 @@
     "SP_XYValues": "SP_XYValues",
     "SP_ListAny": "SP_ListAny",
     "SP_DynamicCombo": "SP_DynamicCombo",
-    "SP_UnlistValues": "SP_UnlistValues"
+    "SP_UnlistValues": "SP_UnlistValues",
+    "SP_Pass": "SP_Pass"
 }
