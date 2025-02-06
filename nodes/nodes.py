@@ -23,6 +23,7 @@ import importlib
 
 import comfy.model_management as mm
 from comfy.cli_args import args
+from comfy.comfy_types import IO
 
 import comfy, comfy_extras
 from comfy_extras.nodes_tomesd import TomePatchModel
@@ -87,13 +88,13 @@ class ImgMetaValueExtractor:
         return float("NaN")
 
     def doit(s, path, prompt_type, value1, value2, value3, value4, value5):
-        try:
-            png_path = s._get_next_png(path)
-            print(f'[{s.index}] png_path: {png_path}')
-            img = Image.open(png_path)
-            image = torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
-            img.close()
+        png_path = s._get_next_png(path)
+        print(f'[{s.index}] png_path: {png_path}')
+        img = Image.open(png_path)
+        image = torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
+        img.close()
 
+        try:
             if isinstance(img.info, dict) and prompt_type in img.info:
                 workflow = json.loads(img.info[prompt_type])
                 return (image,
@@ -108,7 +109,7 @@ class ImgMetaValueExtractor:
         except:
             pass
 
-        return (None, None, None, None, None, None, None, None,)
+        return (image, None, None, None, None, None, None, None,)
     
     def _comfyui_prompt_to_str(s, info):
         result = {}
@@ -561,17 +562,17 @@ class ComfyuiRuntimeArgs:
                 "disable_smart_memory": ('BOOLEAN', {"default": False}),
             },
             "optional": {
-                "optional":(ANY_TYPE, ),
+                "opt_in":(ANY_TYPE, ),
             }
         }
 
-    RETURN_TYPES = ('STRING',)
-    RETURN_NAMES = ('args_str',)
+    RETURN_TYPES = (ANY_TYPE, 'STRING')
+    RETURN_NAMES = ('out', 'args_str')
     FUNCTION = "doit"
     OUTPUT_NODE = True
     CATEGORY = CATEGORY
 
-    def doit(s, fp8_mode, attention, fast, extra_reserved_vram_mb, disable_smart_memory, optional=None):
+    def doit(s, fp8_mode, attention, fast, extra_reserved_vram_mb, disable_smart_memory, opt_in=None):
         if fp8_mode == 'fp8_e4m3fn':
             args.fp8_e4m3fn_unet = args.fp8_e4m3fn_text_enc = True
             args.fp8_e5m2_unet = args.fp8_e5m2_text_enc = False
@@ -625,7 +626,7 @@ class ComfyuiRuntimeArgs:
 
         mm.DISABLE_SMART_MEMORY = disable_smart_memory
 
-        return str('\n'.join(f'{a[0]}={a[1]}' for a in args._get_kwargs())), 
+        return opt_in, str('\n'.join(f'{a[0]}={a[1]}' for a in args._get_kwargs()))
 
 
 class SP_KSamplerSelect:
@@ -754,6 +755,39 @@ class SP_ListAny:
             # else:
             #     result.append(value)
         return result,
+
+class SP_SwitchBooleanAny:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "on_true": (IO.ANY, {"lazy": True}),
+                "on_false": (IO.ANY, {"lazy": True}),
+                "boolean": (IO.BOOLEAN, {"default": True}),
+            }
+        }
+
+    CATEGORY = CATEGORY
+    RETURN_TYPES = (IO.ANY,)
+
+    FUNCTION = "execute"
+
+    def check_lazy_status(self, *args, **kwargs):
+        selected = kwargs['boolean']
+        input_name = 'on_true' if selected else 'on_false'
+
+        print(f"SELECTED: {input_name}")
+
+        if input_name in kwargs:
+            return [input_name]
+        else:
+            return []
+
+    def execute(self, on_true, on_false, boolean=True):
+        if boolean:
+            return (on_true,)
+        else:
+            return (on_false,)
         
 
 NODE_CLASS_MAPPINGS = {
@@ -771,6 +805,7 @@ NODE_CLASS_MAPPINGS = {
     "SP_XYGrid": SP_XYGrid, 
     "SP_XYValues": SP_XYValues, 
     "SP_ListAny": SP_ListAny, 
+    "SP_SwitchBooleanAny": SP_SwitchBooleanAny, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

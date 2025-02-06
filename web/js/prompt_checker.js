@@ -78,15 +78,22 @@ app.registerExtension({
                     if (token.startsWith(DISABLED_TOKEN)) {
                         return token;
                     }
-
+                
                     let currentTokens = tokenize(prompt.value);
+                    const loraRegex = /^<lora:(.*?):([0-9.]+)>$/;
                     const weightRegex = /^\((.*?):([0-9.]+)\)$/;
-
+                
                     currentTokens = currentTokens.map(currentToken => {
-                        let newToken = token
+                        let newToken = token;
                         if (currentToken === token) {
                             let weightChange = event.deltaY < 0 ? 0.05 : -0.05;
-                            if (weightRegex.test(token)) {
+                            if (loraRegex.test(token)) {
+                                newToken = token.replace(loraRegex, (match, content, weight) => {
+                                    let newWeight = parseFloat(weight) + weightChange;
+                                    newWeight = Math.max(0.05, newWeight);
+                                    return `<lora:${content}:${newWeight.toFixed(2)}>`;
+                                });
+                            } else if (weightRegex.test(token)) {
                                 newToken = token.replace(weightRegex, (match, content, weight) => {
                                     let newWeight = parseFloat(weight) + weightChange;
                                     newWeight = Math.max(0.05, newWeight);
@@ -94,12 +101,12 @@ app.registerExtension({
                                 });
                             } else {
                                 let newWeight = weightChange > 0 ? 1.05 : 0.95;
-                                newToken = `(${token}:${newWeight})`;
+                                newToken = newWeight !== 1.0 ? `(${token}:${newWeight.toFixed(2)})` : token;
                             }
                         }
                         return currentToken === token ? newToken : currentToken;
                     });
-
+                
                     prompt.value = currentTokens.join(', ');
                 }
 

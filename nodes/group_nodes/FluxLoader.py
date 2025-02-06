@@ -346,6 +346,29 @@ class SP_Pipe:
         result = tuple([sp_pipe] + [v for k, v in sp_pipe.items() if not k.startswith("_")])
 
         return result
+    
+class SP_SetPipeModelType:
+    CATEGORY = "SP-Nodes/Group Nodes"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "sp_pipe": ("SP_PIPE",),
+                'model_type': (["none", "flux", "hunyuan_video"],)
+                },
+        }
+
+    RETURN_TYPES = "SP_PIPE",
+    RETURN_NAMES = "sp_pipe",
+    FUNCTION = "fn"
+
+    def fn(self, sp_pipe, model_type):
+        if model_type=='none':
+            model_type=None
+            
+        sp_pipe = SP_Pipe().fn(sp_pipe, _model_type=model_type)
+        return sp_pipe
 
 class SP_DDInpaint_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -766,6 +789,7 @@ class SP_SD3Loader(SP_FluxLoader):
         new_required['weight_dtype'] = (
                     [
                         "fp8_e4m3fn",
+                        "fp8_e4m3fn_fast",
                         "fp8_e5m2",
                         "nf4-float8_e4m3fn",
                         "nf4-float8_e5m2",
@@ -904,13 +928,119 @@ class SP_HunyuanLoader:
         files += safe_get_filename_list("clip_gguf")
         return sorted(files)
     
+class SP_ModelLoader:
+    CATEGORY = "SP-Nodes/Group Nodes"
+
+    @classmethod
+    def INPUT_TYPES(self):
+        inputs = {
+            "required": {
+                "unet_name": (
+                    [
+                        x
+                        for x in folder_paths.get_filename_list("diffusion_models")
+                        + safe_get_filename_list("unet_gguf")
+                    ],
+                ),
+                "weight_dtype": (
+                    [
+                        "fp8_e4m3fn",
+                        "fp8_e4m3fn_fast",
+                        "fp8_e5m2",
+                        "nf4-float8_e4m3fn",
+                        "nf4-float8_e5m2",
+                        "gguf",
+                    ],
+                ),
+                "vae_name": (nodes.VAELoader.vae_list(),),
+                "clip_name1": (self.get_clip_list(),),
+                "clip_name2": (["None"] + self.get_clip_list(),),
+                "clip_name3": (["None"] + self.get_clip_list(),),
+                "model_type": (['sd', 'sd3', 'flux', 'hunyuan_video'],),
+            },
+            "optional": {},
+        }
+        return inputs
+
+    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE")
+    RETURN_NAMES = ("sp_pipe", "model", "clip", "vae")
+    FUNCTION = "fn"
+
+    def fn(
+        self,
+        unet_name,
+        weight_dtype,
+        vae_name,
+        clip_name1,
+        clip_name2,
+        clip_name3,
+        model_type,
+    ):
+        graph = Graph()
+
+        def get_dual_clip_type(model_type):
+            return 'sdxl' if model_type == 'sd' else model_type
+
+        # load unet
+        model = None
+        if weight_dtype.startswith("fp8") or weight_dtype == "default":
+            model = graph.UNETLoader(unet_name, weight_dtype)
+        elif weight_dtype.startswith("nf4"):
+            model = graph.SP_UnetLoaderBNB(unet_name, weight_dtype.split("-")[1])
+        elif weight_dtype == "gguf":
+            model = graph.UnetLoaderGGUF(unet_name)
+
+        # load clip
+        clip = None
+        if clip_name2 == "None":
+            clip = graph.CLIPLoaderGGUF(clip_name1)
+        elif clip_name3 == "None":
+            clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, get_dual_clip_type(model_type))
+        else:
+            clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
+
+        # load vae
+        vae = graph.VAELoader(vae_name)
+
+        _model_type = None
+        if model_type != 'sd':
+            _model_type = model_type
+
+        # SP_Pipe
+        sp_pipe = graph.SP_Pipe(
+            None,
+            model,
+            clip,
+            vae,
+            None,
+            None,
+            None,
+            None,
+            _model_type=_model_type,
+        )[0]
+
+        return {
+            "result": (sp_pipe, model, clip, vae),
+            "expand": graph.finalize(),
+        }
+
+    @classmethod
+    def get_clip_list(s):
+        files = []
+        files += folder_paths.get_filename_list("clip")
+        files += safe_get_filename_list("clip_gguf")
+        return sorted(files)
+
+    
 NODE_CLASS_MAPPINGS = {
     "SP_Pipe": SP_Pipe,
+    "SP_SetPipeModelType": SP_SetPipeModelType,
     "SP_SDLoader": SP_SDLoader,
     "SP_KSampler": SP_KSampler,
     "SP_FluxLoader": SP_FluxLoader,
     "SP_HunyuanLoader": SP_HunyuanLoader,
     "SP_SD3Loader": SP_SD3Loader,
+    "SP_ModelLoader": SP_ModelLoader,
     "SP_DictValue": SP_DictValue,
     "SP_DDInpaint_Pipe": SP_DDInpaint_Pipe,
     "SP_UnlistValues": SP_UnlistValues,

@@ -35,7 +35,7 @@ function reconnectOutputs(node) {
 
 function setType(node, type, change_title) {
   node.inputs[0].type = node.outputs[0].type = type;
-  node.inputs[0].label = node.outputs[0].label = type.toLowerCase();
+  node.inputs[0].label = node.outputs[0].label = type?.toLowerCase();
   if (change_title) {
     node.title = type;
   }
