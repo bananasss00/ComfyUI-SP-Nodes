@@ -20,9 +20,13 @@ class DynamicCombo {
                 return self.selectedWidget.value;
             },
             set value(v) { 
+                // work for comfyui frontend < v1.9.8
                 self.selectedWidget.value = v
             },
-            callback: () => {},
+            callback: (v) => {
+                // fix for comfyui frontend >= v1.9.8
+                self.selectedWidget.value = v;
+            },
             options: {
                 serialize: false,
                 get values() {
