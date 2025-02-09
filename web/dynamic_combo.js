@@ -9,6 +9,7 @@ class DynamicCombo {
         this.node.size = [210,LiteGraph.NODE_SLOT_HEIGHT*3.4];
         this.node.widgets[0].hidden = true;
         this.node.widgets[0].type = "hidden";
+        this.node.outputs[0].label = this.node.properties.name;
 
         this.selectedWidget = this.node.widgets[0];
 
@@ -40,9 +41,11 @@ class DynamicCombo {
             
         };
 
-        this.node.onPropertyChanged = function ()
+        this.node.onPropertyChanged = function (name, value)
         {
-            
+            if (name === 'name') {
+                self.node.outputs[0].label = value;
+            }
         }
 
         this.node.valueUpdate = function(e)
