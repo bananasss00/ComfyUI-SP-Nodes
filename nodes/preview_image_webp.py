@@ -17,7 +17,7 @@ class PreviewImageWEBP:
     def INPUT_TYPES(s):
         return {"required":
                     {"images": ("IMAGE", ),
-                     "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
+                     "quality": ("INT", {"default": 83, "min": 0, "max": 100}),
                      "method": (list(s.methods.keys()),),
                      # "num_frames": ("INT", {"default": 0, "min": 0, "max": 8192}),
                      },

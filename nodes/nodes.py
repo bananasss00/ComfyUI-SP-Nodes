@@ -94,22 +94,48 @@ class ImgMetaValueExtractor:
         image = torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
         img.close()
 
+        file_extension = os.path.splitext(png_path)[1].lower()
+
         try:
-            if isinstance(img.info, dict) and prompt_type in img.info:
-                workflow = json.loads(img.info[prompt_type])
-                return (image,
+            if file_extension == '.png' and isinstance(img.info, dict) and prompt_type in img.info:
+                info = img.info
+            elif file_extension == '.webp':
+                info = s._extract_metadata_from_webp(png_path)
+            else:
+                return (image, None, None, None, None, None, None, None,)
+            
+            workflow = json.loads(info[prompt_type])
+    
+            return (image,
                     os.path.splitext(os.path.basename(png_path))[0],
                     s._read_value(workflow, value1, prompt_type),
                     s._read_value(workflow, value2, prompt_type),
                     s._read_value(workflow, value3, prompt_type),
                     s._read_value(workflow, value4, prompt_type),
                     s._read_value(workflow, value5, prompt_type),
-                    s._comfyui_prompt_to_str(img.info)
+                    s._comfyui_prompt_to_str(info)
                     )
-        except:
+        except Exception as ex:
+            # raise ex
             pass
 
         return (image, None, None, None, None, None, None, None,)
+
+    def _extract_metadata_from_webp(self, file_path):
+        img = Image.open(file_path)
+
+        metadata = img.getexif()
+
+        if metadata:
+            prompt_workflow_keys = [0x0110, 0x010f]
+            result = {}
+            for key in prompt_workflow_keys:
+                info = metadata[key]
+                k, v = info.split(':', 1)
+                result[k] = v
+            return result
+        else:
+            return None
     
     def _comfyui_prompt_to_str(s, info):
         result = {}
@@ -148,7 +174,7 @@ class ImgMetaValueExtractor:
         files = []
         for root, dirs, subs in os.walk(directory):
             for file in subs:
-                if not file.endswith('.png'):
+                if not file.endswith('.png') and not file.endswith('.webp'):
                     continue
                 full_path = os.path.join(root, file)
                 files.append(full_path)
