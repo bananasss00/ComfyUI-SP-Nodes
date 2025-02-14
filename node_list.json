@@ -71,6 +71,7 @@
     "SP_ListAny": "SP_ListAny",
     "SP_SwitchBooleanAny": "SP_SwitchBooleanAny",
     "SP_DynamicCombo": "SP_DynamicCombo",
+    "SP_ImpactSwitchCombo": "SP_ImpactSwitchCombo",
     "SP_UnlistValues": "SP_UnlistValues",
     "SP_Pass": "SP_Pass"
 }
