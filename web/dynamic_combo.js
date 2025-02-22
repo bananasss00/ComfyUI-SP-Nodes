@@ -29,11 +29,9 @@ function addNode(name, referenceNode, options = {}) {
 }
   
 class DynamicCombo {
-    default_separator = ';';
-
     constructor(node) {
         this.node = node;
-        this.node.properties = { name: 'combo', values: '1;2;3;4;5;6', separator: DynamicCombo.default_separator };
+        this.node.properties = { name: 'combo', values: '1;2;3;4;5;6', separator: ';' };
         this.node.size = [210,LiteGraph.NODE_SLOT_HEIGHT*3.4];
         this.node.widgets[0].hidden = true;
         this.node.widgets[0].type = "hidden";
