@@ -31,7 +31,10 @@ function addNode(name, referenceNode, options = {}) {
 class DynamicCombo {
     constructor(node) {
         this.node = node;
-        this.node.properties = { name: 'combo', values: '1;2;3;4;5;6', separator: ';' };
+
+        if (!this.node.properties?.name)
+            this.node.properties = { name: 'combo', values: '1\n2\n3\n4\n5\n6', separator: '\\n' };
+
         this.node.size = [210,LiteGraph.NODE_SLOT_HEIGHT*3.4];
         this.node.widgets[0].hidden = true;
         this.node.widgets[0].type = "hidden";
@@ -57,7 +60,8 @@ class DynamicCombo {
             options: {
                 serialize: false,
                 get values() {
-                    return self.node.properties.values.split(self.node.properties.separator); 
+                    const separator = self.node.properties.separator.replace('\\n', '\n');
+                    return self.node.properties.values.replace('\r', '').trimEnd().split(separator); 
                 }
               }};
         this.node.widgets.splice(0, 0, w);
@@ -72,6 +76,7 @@ class DynamicCombo {
             if (name === 'name') {
                 self.node.outputs[0].label = value;
             }
+            console.log(`Property changed: ${name} to ${value}`);
         }
 
         this.node.valueUpdate = function(e)
@@ -116,7 +121,7 @@ function showSubMenu(value, options, e, menu, node) {
                 comboNode.outputs[0].label = widget.name;
                 comboNode.properties.name = widget.name;
                 comboNode.properties.values = values;
-                comboNode.properties.separator = '\n';
+                comboNode.properties.separator = '\\n';
             }
         })
     }
