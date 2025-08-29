@@ -73,5 +73,12 @@
     "SP_DynamicCombo": "SP_DynamicCombo",
     "SP_ImpactSwitchCombo": "SP_ImpactSwitchCombo",
     "SP_UnlistValues": "SP_UnlistValues",
-    "SP_Pass": "SP_Pass"
+    "SP_Pass": "SP_Pass",
+    "SP_AnyPipe5": "SP_AnyPipe5",
+    "SP_AnyPipe10": "SP_AnyPipe10",
+    "SP_AnyPipe15": "SP_AnyPipe15",
+    "SP_AnyPipe20": "SP_AnyPipe20",
+    "SP_AnyPipe30": "SP_AnyPipe30",
+    "SP_AnyPipe40": "SP_AnyPipe40",
+    "SP_AnyPipe50": "SP_AnyPipe50"
 }

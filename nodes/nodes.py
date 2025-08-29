@@ -22,7 +22,7 @@ import itertools
 import importlib
 
 import comfy.model_management as mm
-from comfy.cli_args import args
+from comfy.cli_args import args, PerformanceFeature
 from comfy.comfy_types import IO
 
 import comfy, comfy_extras
@@ -646,7 +646,10 @@ class ComfyuiRuntimeArgs:
                 args.use_sage_attention = False
                 attn.optimized_attention = attn.optimized_attention_masked = attn.attention_sub_quad
 
-        args.fast = fast
+        if fast:
+            args.fast = set(PerformanceFeature)
+        else:
+            args.fast = set()
 
         mm.EXTRA_RESERVED_VRAM = extra_reserved_vram_mb * 1024**2
 
