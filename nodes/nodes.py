@@ -61,6 +61,30 @@ API_URL = f"https://api.telegram.org/bot"
 
 CATEGORY = "SP-Nodes"
 
+# from impact pack, but without js backend(no subgraphs issues)
+class NthItemOfAnyList:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":  {
+                    "any_list": (ANY_TYPE,),
+                    "index": ("INT", {"default": 0, "min": 0, "max": sys.maxsize, "step": 1, "tooltip": "The index of the item you want to select from the list."}),
+                    }
+        }
+
+    RETURN_TYPES = (ANY_TYPE,)
+    INPUT_IS_LIST = True
+    FUNCTION = "doit"
+
+    CATEGORY = CATEGORY
+
+    DESCRIPTION = "Selects the Nth item from a list. If the index is out of range, it returns the last item in the list."
+
+    def doit(self, any_list, index):
+        i = index[0]
+        if i >= len(any_list):
+            return (any_list[-1],)
+        else:
+            return (any_list[i],)
 
 class ImgMetaValueExtractor:
     # batch i2i generated images(upscale/anything)
@@ -835,6 +859,7 @@ NODE_CLASS_MAPPINGS = {
     "SP_XYValues": SP_XYValues, 
     "SP_ListAny": SP_ListAny, 
     "SP_SwitchBooleanAny": SP_SwitchBooleanAny, 
+    "SP_SelectItemFromAnyList": NthItemOfAnyList, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

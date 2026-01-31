@@ -40,6 +40,7 @@
     "SD3Multiply": "SD3Multiply",
     "SD3BlocksMultiply": "SD3BlocksMultiply",
     "SP_WebsocketSendImage": "SP_WebsocketSendImage",
+    "SP_SendStringWebsocket": "SP_SendStringWebsocket",
     "ComfyuiRuntimeArgs": "ComfyuiRuntimeArgs",
     "NoiseInjectionEssentialsHookProvider": "NoiseInjectionEssentialsHookProvider",
     "SP_HiresGen_Dynamic": "SP_HiresGen_Dynamic",
@@ -73,6 +74,9 @@
     "SP_DynamicCombo": "SP_DynamicCombo",
     "SP_ImpactSwitchCombo": "SP_ImpactSwitchCombo",
     "SP_UnlistValues": "SP_UnlistValues",
+    "SP_SelectItemFromAnyList": "SP_SelectItemFromAnyList",
+    "SP_SaveLatent": "SP_SaveLatent",
+    "SP_LoadLatent": "SP_LoadLatent",
     "SP_Pass": "SP_Pass",
     "SP_AnyPipe5": "SP_AnyPipe5",
     "SP_AnyPipe10": "SP_AnyPipe10",
@@ -80,5 +84,15 @@
     "SP_AnyPipe20": "SP_AnyPipe20",
     "SP_AnyPipe30": "SP_AnyPipe30",
     "SP_AnyPipe40": "SP_AnyPipe40",
-    "SP_AnyPipe50": "SP_AnyPipe50"
+    "SP_AnyPipe50": "SP_AnyPipe50",
+    "SP_DebugLogger": "SP_DebugLogger",
+    "SP_CacheValue": "SP_CacheValue",
+    "SP_CacheManager": "SP_CacheManager",
+    "SP_CacheCheck": "SP_CacheCheck",
+    "SP_CacheStore": "SP_CacheStore",
+    "SP_CacheGet": "SP_CacheGet",
+    "SP_CompositeCacheKey": "SP_CompositeCacheKey",
+    "SP_CachePersistence": "SP_CachePersistence",
+    "SP_CacheAutoLoader": "SP_CacheAutoLoader"
+    
 }

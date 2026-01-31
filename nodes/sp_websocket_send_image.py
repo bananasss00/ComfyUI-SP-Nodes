@@ -13,6 +13,8 @@ from comfy.cli_args import args
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
 
+import server
+
 #You can use this node to save full size images through the websocket, the
 #images will be sent in exactly the same format as the image previews: as
 #binary images on the websocket with a 8 byte header indicating the type
@@ -20,6 +22,31 @@ from PIL.PngImagePlugin import PngInfo
 
 #Note that no metadata will be put in the images saved with this node.
 
+class SP_SendStringWebsocket:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "string": ("STRING", {"default": ""})},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID",},
+                }
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = 'SP-Nodes/websocket'
+    DESCRIPTION = (
+        "Sends a JSON message via websocket containing 'node_id' and 'string'. "
+        "Useful for API integrations, allowing external clients to receive custom text data "
+        "and associate it with a specific node in the workflow."
+    )
+
+    def save(self, string, prompt=None, extra_pnginfo=None, unique_id=None):
+        server.PromptServer.instance.send_sync('websocket_string', json.dumps({
+            "node_id": unique_id,
+            "string": string,
+        }))
+        return {}
+        
 class SP_WebsocketSendImage:
     @classmethod
     def INPUT_TYPES(s):
@@ -33,7 +60,7 @@ class SP_WebsocketSendImage:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "api/image"
+    CATEGORY = "SP-Nodes/websocket"
 
     def save_images(self, images, prompt=None, extra_pnginfo=None):
         results = []
@@ -70,4 +97,5 @@ class SP_WebsocketSendImage:
 
 NODE_CLASS_MAPPINGS = {
     "SP_WebsocketSendImage": SP_WebsocketSendImage,
+    "SP_SendStringWebsocket": SP_SendStringWebsocket,
 }
