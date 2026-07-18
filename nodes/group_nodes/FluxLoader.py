@@ -3,15 +3,18 @@ from comfy_execution.graph import DynamicPrompt
 
 from .Graph import Graph
 
+
 def safe_get_filename_list(k):
     try:
         return folder_paths.get_filename_list(k)
     except KeyError:
         return []
 
+
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
         return False
+
 
 MAX_RESOLUTION = 16384
 
@@ -69,29 +72,30 @@ CONTEXT = {
     "image": "IMAGE",
 }
 
+
 # TODO: refactor this shit
 def make_pipe(
-        unet_name,
-        weight_dtype,
-        vae_name,
-        clip_name1,
-        clip_name2,
-        lora_name,
-        lora_strength,
-        positive,
-        resolution,
-        empty_latent_width,
-        empty_latent_height,
-        clip_type='flux',
-        clip_name3=None,
-        negative=None,
-        de_distilled=False,
-        hunyuan_fast=False,
-        empty_latent_length=0,
-        image=None,
-        image_megapixels=0,
-        image_tile_size=0
-    ):
+    unet_name,
+    weight_dtype,
+    vae_name,
+    clip_name1,
+    clip_name2,
+    lora_name,
+    lora_strength,
+    positive,
+    resolution,
+    empty_latent_width,
+    empty_latent_height,
+    clip_type="flux",
+    clip_name3=None,
+    negative=None,
+    de_distilled=False,
+    hunyuan_fast=False,
+    empty_latent_length=0,
+    image=None,
+    image_megapixels=0,
+    image_tile_size=0,
+):
     graph = Graph()
 
     # set resolution
@@ -116,7 +120,7 @@ def make_pipe(
     if clip_name2 == "None":
         clip = graph.CLIPLoaderGGUF(clip_name1)
     elif clip_name3 == "None":
-        if clip_type != 'hunyuan_video':
+        if clip_type != "hunyuan_video":
             clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, clip_type)
         else:
             clip = graph.DualCLIPLoader(clip_name1, clip_name2, clip_type)
@@ -141,18 +145,28 @@ def make_pipe(
     # model = graph.ModelSamplingFlux(model, max_shift, base_shift, empty_latent_width, empty_latent_height)
 
     latent = None
-    if clip_type != 'hunyuan_video':
+    if clip_type != "hunyuan_video":
         latent = graph.EmptySD3LatentImage(empty_latent_width, empty_latent_height, 1)
     else:
         if image is None:
-            latent = graph.EmptyHunyuanLatentVideo(empty_latent_width, empty_latent_height, empty_latent_length, 1)
+            latent = graph.EmptyHunyuanLatentVideo(
+                empty_latent_width, empty_latent_height, empty_latent_length, 1
+            )
         else:
             if image_megapixels > 0.01:
-                image = graph.ImageScaleToTotalPixels(image, megapixels=image_megapixels)
+                image = graph.ImageScaleToTotalPixels(
+                    image, megapixels=image_megapixels
+                )
 
-            image, w, h = graph.ImageResize(image, width=0, height=0,
-                                        interpolation='nearest', method='fill / crop',
-                                        condition='always', multiple_of=16)
+            image, w, h = graph.ImageResize(
+                image,
+                width=0,
+                height=0,
+                interpolation="nearest",
+                method="fill / crop",
+                condition="always",
+                multiple_of=16,
+            )
             latent = graph.VAEEncode(image, vae, image_tile_size)
 
         model = graph.ModelSamplingSD3(model, 17.0 if hunyuan_fast else 7.0)
@@ -179,6 +193,7 @@ def make_pipe(
         "expand": graph.finalize(),
     }
 
+
 def ksampler_main(
     sp_pipe,
     seed,
@@ -197,7 +212,7 @@ def ksampler_main(
     latent_image=None,
     image=None,
     sampler=None,
-    sigmas=None
+    sigmas=None,
 ):
     graph = Graph()
 
@@ -241,17 +256,21 @@ def ksampler_main(
     latent = get_prior_latent(image, pipe_image, latent_image, latent)
 
     if inject_noise > 0.01:
-        latent = graph.InjectLatentNoise(latent, noise_seed=seed, noise_strength=inject_noise)
+        latent = graph.InjectLatentNoise(
+            latent, noise_seed=seed, noise_strength=inject_noise
+        )
 
     def apply_distilled_cfg(positive, cfg, type):
-        model_type = graph.SP_DictValue(sp_pipe, '_model_type')
+        model_type = graph.SP_DictValue(sp_pipe, "_model_type")
         is_flux = graph.ImpactCompare(type, model_type)
-        positive = graph.ImpactConditionalBranch(tt_value=graph.FluxGuidance(positive, cfg), ff_value=positive, cond=is_flux)
+        positive = graph.ImpactConditionalBranch(
+            tt_value=graph.FluxGuidance(positive, cfg), ff_value=positive, cond=is_flux
+        )
         cfg = graph.ImpactConditionalBranch(tt_value=1.0, ff_value=cfg, cond=is_flux)
         return positive, cfg
-    
-    positive, cfg = apply_distilled_cfg(positive, cfg, 'flux')
-    positive, cfg = apply_distilled_cfg(positive, cfg, 'hunyuan_video')
+
+    positive, cfg = apply_distilled_cfg(positive, cfg, "flux")
+    positive, cfg = apply_distilled_cfg(positive, cfg, "hunyuan_video")
 
     # latent = graph.KSampler(
     #     model,
@@ -270,10 +289,14 @@ def ksampler_main(
     guider = graph.CFGGuider(model, positive, negative, cfg)
     noise = graph.RandomNoise(seed)
 
-    sigmas = graph.AnySwitch(sigmas, graph.BasicScheduler(model, scheduler, steps, denoise))
+    sigmas = graph.AnySwitch(
+        sigmas, graph.BasicScheduler(model, scheduler, steps, denoise)
+    )
     sampler = graph.AnySwitch(sampler, graph.KSamplerSelect(sampler_name))
 
-    output, denoised_output = graph.SamplerCustomAdvanced(noise, guider, sampler, sigmas, latent)
+    output, denoised_output = graph.SamplerCustomAdvanced(
+        noise, guider, sampler, sigmas, latent
+    )
     latent = denoised_output
 
     image = None
@@ -282,22 +305,21 @@ def ksampler_main(
 
         if preview:
             graph.PreviewImage(image)
-    
+
     sp_pipe = graph.SP_Pipe(
-        sp_pipe,
-        model,
-        clip,
-        vae,
-        positive,
-        negative,
-        latent,
-        None
+        sp_pipe, model, clip, vae, positive, negative, latent, None
     )[0]
-    
+
     return {
-        "result": (sp_pipe, sp_pipe_orig, graph.SP_UnlistValues(latent), graph.SP_UnlistValues(image)),
+        "result": (
+            sp_pipe,
+            sp_pipe_orig,
+            graph.SP_UnlistValues(latent),
+            graph.SP_UnlistValues(image),
+        ),
         "expand": graph.finalize(),
     }
+
 
 class SP_DictValue:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -307,15 +329,16 @@ class SP_DictValue:
         return {
             "required": {
                 "dictionary": (AnyType("*"),),
-                "key": ("STRING", {"default": '', "multiline": False}),
+                "key": ("STRING", {"default": "", "multiline": False}),
             },
         }
 
-    RETURN_TYPES = AnyType('*'),
+    RETURN_TYPES = (AnyType("*"),)
     FUNCTION = "fn"
 
     def fn(self, dictionary: dict, key):
-        return dictionary.get(key, None),
+        return (dictionary.get(key, None),)
+
 
 class SP_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -325,7 +348,7 @@ class SP_Pipe:
         return {
             "required": {},
             "optional": {k: tuple([v]) for k, v in CONTEXT.items()},
-            "hidden": {'_model_type': "STRING"}
+            "hidden": {"_model_type": "STRING"},
         }
 
     RETURN_TYPES = tuple(CONTEXT.values())
@@ -343,10 +366,13 @@ class SP_Pipe:
                 continue
             sp_pipe[k] = v
 
-        result = tuple([sp_pipe] + [v for k, v in sp_pipe.items() if not k.startswith("_")])
+        result = tuple(
+            [sp_pipe] + [v for k, v in sp_pipe.items() if not k.startswith("_")]
+        )
 
         return result
-    
+
+
 class SP_SetPipeModelType:
     CATEGORY = "SP-Nodes/Group Nodes"
 
@@ -355,20 +381,21 @@ class SP_SetPipeModelType:
         return {
             "required": {
                 "sp_pipe": ("SP_PIPE",),
-                'model_type': (["none", "flux", "hunyuan_video"],)
-                },
+                "model_type": (["none", "flux", "hunyuan_video"],),
+            },
         }
 
-    RETURN_TYPES = "SP_PIPE",
-    RETURN_NAMES = "sp_pipe",
+    RETURN_TYPES = ("SP_PIPE",)
+    RETURN_NAMES = ("sp_pipe",)
     FUNCTION = "fn"
 
     def fn(self, sp_pipe, model_type):
-        if model_type=='none':
-            model_type=None
-            
+        if model_type == "none":
+            model_type = None
+
         sp_pipe = SP_Pipe().fn(sp_pipe, _model_type=model_type)
         return sp_pipe
+
 
 class SP_DDInpaint_Pipe:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -384,20 +411,33 @@ class SP_DDInpaint_Pipe:
             }
         }
 
-    RETURN_TYPES = "SP_PIPE",
-    RETURN_NAMES = "sp_pipe",
+    RETURN_TYPES = ("SP_PIPE",)
+    RETURN_NAMES = ("sp_pipe",)
     FUNCTION = "fn"
 
     def fn(self, sp_pipe, pixels, mask, noise_mask):
         graph = Graph()
 
-        model = graph.DifferentialDiffusion(sp_pipe['model'])
-        positive, negative, latent = graph.InpaintModelConditioning(sp_pipe['positive'], sp_pipe['negative'], sp_pipe['vae'], pixels, mask, noise_mask)
+        model = graph.DifferentialDiffusion(sp_pipe["model"])
+        positive, negative, latent = graph.InpaintModelConditioning(
+            sp_pipe["positive"],
+            sp_pipe["negative"],
+            sp_pipe["vae"],
+            pixels,
+            mask,
+            noise_mask,
+        )
 
-        sp_pipe = graph.SP_Pipe(sp_pipe=sp_pipe, model=model, positive=positive, negative=negative, latent=latent)[0]
+        sp_pipe = graph.SP_Pipe(
+            sp_pipe=sp_pipe,
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent=latent,
+        )[0]
 
         return {
-            "result": (sp_pipe, ),
+            "result": (sp_pipe,),
             "expand": graph.finalize(),
         }
 
@@ -410,7 +450,7 @@ class SP_SDLoader:
         inputs = {
             "required": {
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
-                "vae_name": (["Baked"] + nodes.VAELoader.vae_list(),),
+                "vae_name": (["Baked"] + folder_paths.get_filename_list("vae"),),
                 "lora_name": (["None"] + folder_paths.get_filename_list("loras"),),
                 "lora_strength": (
                     "FLOAT",
@@ -509,24 +549,26 @@ class SP_SDLoader:
             "expand": graph.finalize(),
         }
 
+
 # TODO: temp fix for rawLink list batching
 class SP_UnlistValues:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "value": (AnyType('*'),),
+                "value": (AnyType("*"),),
             },
         }
 
-    RETURN_TYPES = (AnyType('*'),)
+    RETURN_TYPES = (AnyType("*"),)
     INPUT_IS_LIST = True
     OUTPUT_IS_LIST = (False,)
     FUNCTION = "test"
     CATEGORY = "SP-Nodes/Group Nodes/Tmp"
 
     def test(s, value):
-        return value,
+        return (value,)
+
 
 class SP_KSampler:
     @classmethod
@@ -623,8 +665,14 @@ class SP_KSampler:
                     "IMAGE",
                     {"tooltip": "The image to denoise.", "rawLink": True},
                 ),
-                "sampler": ("SAMPLER", {"rawLink": True},),
-                "sigmas": ("SIGMAS", {"rawLink": True},),
+                "sampler": (
+                    "SAMPLER",
+                    {"rawLink": True},
+                ),
+                "sigmas": (
+                    "SIGMAS",
+                    {"rawLink": True},
+                ),
             },
         }
 
@@ -657,7 +705,7 @@ class SP_KSampler:
         latent_image=None,
         image=None,
         sampler=None,
-        sigmas=None
+        sigmas=None,
     ):
         return ksampler_main(
             sp_pipe,
@@ -677,7 +725,7 @@ class SP_KSampler:
             latent_image,
             image,
             sampler,
-            sigmas
+            sigmas,
         )
 
 
@@ -706,7 +754,7 @@ class SP_FluxLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (folder_paths.get_filename_list("vae"),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (self.get_clip_list(),),
                 "lora_name": (["None"] + folder_paths.get_filename_list("loras"),),
@@ -714,7 +762,14 @@ class SP_FluxLoader:
                     "FLOAT",
                     {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.05},
                 ),
-                "positive": ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "positive"}),
+                "positive": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "placeholder": "positive",
+                    },
+                ),
                 "resolution": (resolution_strings, {"default": "1024 x 1024"}),
                 "empty_latent_width": (
                     "INT",
@@ -729,7 +784,15 @@ class SP_FluxLoader:
         }
         return inputs
 
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_TYPES = (
+        "SP_PIPE",
+        "MODEL",
+        "CLIP",
+        "VAE",
+        "CONDITIONING",
+        "CONDITIONING",
+        "LATENT",
+    )
     RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
     FUNCTION = "fn"
 
@@ -747,9 +810,12 @@ class SP_FluxLoader:
         resolution,
         empty_latent_width,
         empty_latent_height,
-        clip_type = 'flux', clip_name3 = "None", negative = None
+        clip_type="flux",
+        clip_name3="None",
+        negative=None,
     ):
-        return make_pipe(unet_name,
+        return make_pipe(
+            unet_name,
             weight_dtype,
             vae_name,
             clip_name1,
@@ -759,7 +825,12 @@ class SP_FluxLoader:
             positive,
             resolution,
             empty_latent_width,
-            empty_latent_height, clip_type, clip_name3, negative, de_distilled)
+            empty_latent_height,
+            clip_type,
+            clip_name3,
+            negative,
+            de_distilled,
+        )
 
     @classmethod
     def get_clip_list(s):
@@ -768,34 +839,45 @@ class SP_FluxLoader:
         files += safe_get_filename_list("clip_gguf")
         return sorted(files)
 
+
 class SP_SD3Loader(SP_FluxLoader):
     @classmethod
     def INPUT_TYPES(self):
         input_types = dict(super().INPUT_TYPES())
 
         required = input_types["required"]
-        
+
         new_required = {}
         for key, value in required.items():
             new_required[key] = value
 
             if key == "clip_name2":
-                new_required["clip_name2"] = new_required["clip_name3"] = (["None"] + self.get_clip_list(),)
+                new_required["clip_name2"] = new_required["clip_name3"] = (
+                    ["None"] + self.get_clip_list(),
+                )
             elif key == "positive":
-                new_required["negative"] = ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "negative"})                
-        
-        del new_required['de_distilled']
+                new_required["negative"] = (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "placeholder": "negative",
+                    },
+                )
 
-        new_required['weight_dtype'] = (
-                    [
-                        "fp8_e4m3fn",
-                        "fp8_e4m3fn_fast",
-                        "fp8_e5m2",
-                        "nf4-float8_e4m3fn",
-                        "nf4-float8_e5m2",
-                        "gguf",
-                        "default"
-                    ],)
+        del new_required["de_distilled"]
+
+        new_required["weight_dtype"] = (
+            [
+                "fp8_e4m3fn",
+                "fp8_e4m3fn_fast",
+                "fp8_e5m2",
+                "nf4-float8_e4m3fn",
+                "nf4-float8_e5m2",
+                "gguf",
+                "default",
+            ],
+        )
 
         input_types["required"] = new_required
 
@@ -814,9 +896,12 @@ class SP_SD3Loader(SP_FluxLoader):
         resolution,
         empty_latent_width,
         empty_latent_height,
-        clip_type = 'sd3', clip_name3 = "None", negative = None
+        clip_type="sd3",
+        clip_name3="None",
+        negative=None,
     ):
-        return super().fn(unet_name,
+        return super().fn(
+            unet_name,
             False,
             weight_dtype,
             vae_name,
@@ -827,7 +912,12 @@ class SP_SD3Loader(SP_FluxLoader):
             positive,
             resolution,
             empty_latent_width,
-            empty_latent_height, clip_type, clip_name3, negative)
+            empty_latent_height,
+            clip_type,
+            clip_name3,
+            negative,
+        )
+
 
 class SP_HunyuanLoader:
     CATEGORY = "SP-Nodes/Group Nodes"
@@ -854,10 +944,17 @@ class SP_HunyuanLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (folder_paths.get_filename_list("vae"),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (self.get_clip_list(),),
-                "positive": ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "positive"}),
+                "positive": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "dynamicPrompts": True,
+                        "placeholder": "positive",
+                    },
+                ),
                 "empty_latent_width": (
                     "INT",
                     {"default": 848, "min": 64, "max": MAX_RESOLUTION, "step": 8},
@@ -888,7 +985,15 @@ class SP_HunyuanLoader:
         }
         return inputs
 
-    RETURN_TYPES = ("SP_PIPE", "MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_TYPES = (
+        "SP_PIPE",
+        "MODEL",
+        "CLIP",
+        "VAE",
+        "CONDITIONING",
+        "CONDITIONING",
+        "LATENT",
+    )
     RETURN_NAMES = ("sp_pipe", "model", "clip", "vae", "positive", "negative", "latent")
     FUNCTION = "fn"
 
@@ -907,9 +1012,12 @@ class SP_HunyuanLoader:
         image_megapixels,
         image_tile_size,
         image=None,
-        clip_type = 'hunyuan_video', clip_name3 = "None", negative = None
+        clip_type="hunyuan_video",
+        clip_name3="None",
+        negative=None,
     ):
-        return make_pipe(unet_name,
+        return make_pipe(
+            unet_name,
             weight_dtype,
             vae_name,
             clip_name1,
@@ -919,7 +1027,17 @@ class SP_HunyuanLoader:
             positive,
             "width x height (custom)",
             empty_latent_width,
-            empty_latent_height, clip_type, clip_name3, negative, False, hunyuan_fast, empty_latent_length, image, image_megapixels, image_tile_size)
+            empty_latent_height,
+            clip_type,
+            clip_name3,
+            negative,
+            False,
+            hunyuan_fast,
+            empty_latent_length,
+            image,
+            image_megapixels,
+            image_tile_size,
+        )
 
     @classmethod
     def get_clip_list(s):
@@ -927,7 +1045,8 @@ class SP_HunyuanLoader:
         files += folder_paths.get_filename_list("clip")
         files += safe_get_filename_list("clip_gguf")
         return sorted(files)
-    
+
+
 class SP_ModelLoader:
     CATEGORY = "SP-Nodes/Group Nodes"
 
@@ -952,11 +1071,11 @@ class SP_ModelLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (folder_paths.get_filename_list("vae"),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (["None"] + self.get_clip_list(),),
                 "clip_name3": (["None"] + self.get_clip_list(),),
-                "model_type": (['sd', 'sd3', 'flux', 'hunyuan_video'],),
+                "model_type": (["sd", "sd3", "flux", "hunyuan_video"],),
             },
             "optional": {},
         }
@@ -979,7 +1098,7 @@ class SP_ModelLoader:
         graph = Graph()
 
         def get_dual_clip_type(model_type):
-            return 'sdxl' if model_type == 'sd' else model_type
+            return "sdxl" if model_type == "sd" else model_type
 
         # load unet
         model = None
@@ -995,7 +1114,9 @@ class SP_ModelLoader:
         if clip_name2 == "None":
             clip = graph.CLIPLoaderGGUF(clip_name1)
         elif clip_name3 == "None":
-            clip = graph.DualCLIPLoaderGGUF(clip_name1, clip_name2, get_dual_clip_type(model_type))
+            clip = graph.DualCLIPLoaderGGUF(
+                clip_name1, clip_name2, get_dual_clip_type(model_type)
+            )
         else:
             clip = graph.TripleCLIPLoaderGGUF(clip_name1, clip_name2, clip_name3)
 
@@ -1003,7 +1124,7 @@ class SP_ModelLoader:
         vae = graph.VAELoader(vae_name)
 
         _model_type = None
-        if model_type != 'sd':
+        if model_type != "sd":
             _model_type = model_type
 
         # SP_Pipe
@@ -1031,7 +1152,7 @@ class SP_ModelLoader:
         files += safe_get_filename_list("clip_gguf")
         return sorted(files)
 
-    
+
 NODE_CLASS_MAPPINGS = {
     "SP_Pipe": SP_Pipe,
     "SP_SetPipeModelType": SP_SetPipeModelType,
