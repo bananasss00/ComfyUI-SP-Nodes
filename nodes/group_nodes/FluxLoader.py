@@ -410,7 +410,7 @@ class SP_SDLoader:
         inputs = {
             "required": {
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
-                "vae_name": (["Baked"] + nodes.VAELoader.vae_list(),),
+                "vae_name": (["Baked"] + nodes.VAELoader.vae_list(nodes.VAELoader),),
                 "lora_name": (["None"] + folder_paths.get_filename_list("loras"),),
                 "lora_strength": (
                     "FLOAT",
@@ -706,7 +706,7 @@ class SP_FluxLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (nodes.VAELoader.vae_list(nodes.VAELoader),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (self.get_clip_list(),),
                 "lora_name": (["None"] + folder_paths.get_filename_list("loras"),),
@@ -854,7 +854,7 @@ class SP_HunyuanLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (nodes.VAELoader.vae_list(nodes.VAELoader),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (self.get_clip_list(),),
                 "positive": ("STRING", {"multiline": True, "dynamicPrompts": True, "placeholder": "positive"}),
@@ -952,7 +952,7 @@ class SP_ModelLoader:
                         "gguf",
                     ],
                 ),
-                "vae_name": (nodes.VAELoader.vae_list(),),
+                "vae_name": (nodes.VAELoader.vae_list(nodes.VAELoader),),
                 "clip_name1": (self.get_clip_list(),),
                 "clip_name2": (["None"] + self.get_clip_list(),),
                 "clip_name3": (["None"] + self.get_clip_list(),),

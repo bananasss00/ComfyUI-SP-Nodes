@@ -471,6 +471,8 @@ class SP_CacheAutoLoader:
                 "cache_directory": ("STRING", {"default": "sp_node_cache", "tooltip": "The directory on disk where the cache file will be stored."}),
                 "compression_level": ("INT", {"default": 0, "min": 0, "max": 9, "tooltip": "0 = Fastest but large files. 3 = Balanced. 9 = Smallest files but slow."}),
                 "enabled": ("BOOLEAN", {"default": True, "tooltip": "If False, the node will simply pass the value through without any caching."}),
+                "force_recompute": ("BOOLEAN", {"default": False, "tooltip": "If True, ignores cache completely, re-evaluates input, and overwrites the disk file."}),
+                "unload_from_ram": ("BOOLEAN", {"default": False, "tooltip": "If True, removes the value from RAM after loading/caching, keeping it ONLY on disk. Great for cross-workflow caching."}),
             },
             "optional": {
                 "value": (IO.ANY, {"lazy": True, "tooltip": "The value to cache. This is only evaluated if the key is not found in memory or on disk."}),
@@ -490,50 +492,93 @@ class SP_CacheAutoLoader:
         filename = f"{safe_filename}.joblib"
         return os.path.join(cache_directory, filename)
 
-    def check_lazy_status(self, key, cache_directory, enabled, compression_level, **kwargs):
-        connected_values =[k for k in kwargs.keys() if k == "value"]
+    def check_lazy_status(self, key, cache_directory, compression_level, enabled, force_recompute, unload_from_ram, **kwargs):
+        connected_values = [k for k in kwargs.keys() if k == "value"]
+        
+        # Если кэш выключен, нам всегда нужно значение (если оно подключено)
         if not enabled: 
             return connected_values
 
+        # Если принудительный пересчет - всегда требуем вычислить значение
+        if force_recompute:
+            return connected_values
+
+        # Иначе вычисляем только если нет ни в ОЗУ, ни на диске
         filepath = self._get_filepath(cache_directory, key)
         if key not in CACHE and not os.path.exists(filepath):
             return connected_values
 
-        return[]
+        return []
 
-    def load_or_compute(self, key, cache_directory, compression_level, enabled, value=None):
+    def load_or_compute(self, key, cache_directory, compression_level, enabled, force_recompute, unload_from_ram, value=None):
         """
         Loads data from cache (memory/disk) or computes it if not found.
         """
+        # 1. Режим выключенного кэша
         if not enabled:
             if value is None:
                 raise ValueError(f"Caching is disabled for key '{key}', but no input was provided to 'value'.")
             return ([value], "Cache disabled; value passed through",)
 
-        if key in CACHE:
-            return ([CACHE[key]], "Loaded from memory",)
+        # 2. Принудительный пересчет (Force Recompute)
+        if force_recompute:
+            if value is None:
+                raise ValueError(f"Force recompute is ON for key '{key}', but no input was provided to 'value'.")
 
+            # Сохраняем на диск в фоновом потоке
+            filepath = self._get_filepath(cache_directory, key)
+            try:
+                os.makedirs(cache_directory, exist_ok=True)
+                threading.Thread(target=_background_save, args=(value, filepath, compression_level), daemon=True).start()
+            except Exception as e:
+                logger.error(f"Failed to save cache file to {filepath}: {e}")
+
+            # Если стоит галочка не держать в ОЗУ - не записываем в CACHE
+            if not unload_from_ram:
+                CACHE[key] = value
+            elif key in CACHE:
+                # На всякий случай очищаем старое значение из ОЗУ, если оно там было
+                del CACHE[key]
+
+            return ([value], "Forced recompute; saved to disk",)
+
+        # 3. Обычный режим: проверяем ОЗУ
+        if key in CACHE:
+            val = CACHE[key]
+            # Если стоит галочка выгрузить из ОЗУ - удаляем из словаря
+            if unload_from_ram:
+                del CACHE[key]
+                return ([val], "Loaded from memory; unloaded from RAM",)
+            return ([val], "Loaded from memory",)
+
+        # 4. Обычный режим: проверяем Диск
         filepath = self._get_filepath(cache_directory, key)
         if os.path.exists(filepath):
             try:
                 loaded_value = joblib.load(filepath)
-                CACHE[key] = loaded_value
-                return ([loaded_value], "Loaded from disk",)
+                # Записываем в ОЗУ только если нет галочки unload_from_ram
+                if not unload_from_ram:
+                    CACHE[key] = loaded_value
+                return ([loaded_value], "Loaded from disk" + (" (RAM bypass)" if unload_from_ram else ""),)
             except Exception as e:
                 logger.error(f"Failed to load cache file {filepath}, will re-compute. Error: {e}")
 
+        # 5. Обычный режим: Промах кэша (Cache MISS)
         if value is None:
             raise ValueError(f"Cache MISS for key '{key}' in memory and on disk, but no input was provided to 'value'.")
 
-        CACHE[key] = value
-
+        # Сохраняем на диск
         try:
             os.makedirs(cache_directory, exist_ok=True)
             threading.Thread(target=_background_save, args=(value, filepath, compression_level), daemon=True).start()
         except Exception as e:
             logger.error(f"Failed to save cache file to {filepath}: {e}")
 
-        return ([value], "Newly computed and cached",)
+        # Сохраняем в ОЗУ только если нет галочки unload_from_ram
+        if not unload_from_ram:
+            CACHE[key] = value
+
+        return ([value], "Newly computed and cached" + (" (RAM bypass)" if unload_from_ram else ""),)
 
 class SP_CacheAutoLoaderMulti:
     """

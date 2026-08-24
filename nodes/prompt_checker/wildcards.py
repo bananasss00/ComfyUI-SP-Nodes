@@ -12,11 +12,16 @@ wildcard_lock = threading.Lock()
 wildcard_dict = {}
 
 def get_wildcard_list():
+    # Re-scan the wildcards folder on each call so that new files show up
+    # after a page refresh without restarting ComfyUI.
+    from ...config import read_config
+    config = read_config()
     with wildcard_lock:
+        wildcard_dict.clear()
+        read_wildcard_dict(config['wildcards_path'])
         return [f"__{x}__" for x in wildcard_dict.keys()]
 
 def get_wildcard_dict():
-    global wildcard_dict
     with wildcard_lock:
         return wildcard_dict
         
